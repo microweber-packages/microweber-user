@@ -1,0 +1,56 @@
+{
+    "name": "microweber-packages/microweber-user",
+    "description": "Microweber CMS.",
+    "type": "library",
+    "license": "MIT",
+    "homepage": "https://microweber.com",
+    "authors": [
+        {
+            "name": "Microweber",
+            "email": "info@microweber.com"
+        }
+    ],
+    "require": {
+        "php": "^8.3",
+        "filament/filament": "~5.6",
+        "laravel/framework": "^11.0|^13.0",
+        "laravel/sanctum": "^4.0",
+        "laravel/socialite": "^5.18",
+        "livewire/livewire": "^4.2",
+        "microweber-packages/microweber-fortify": "*",
+        "microweber-packages/microweber-searchable": "*",
+        "microweber-packages/microweber-database": "*",
+        "microweber-packages/microweber-social-login": "*",
+        "microweber-packages/microweber-http": "*",
+        "microweber-packages/microweber-event-manager": "*",
+        "microweber-packages/microweber-url": "*",
+        "microweber-packages/microweber-notification": "*",
+        "microweber-packages/microweber-format": "*",
+        "microweber-packages/microweber-passport": "*",
+        "microweber-packages/microweber-option": "*",
+        "microweber-packages/microweber-filament-registry": "*",
+        "microweber-packages/microweber-admin": "*",
+        "microweber-packages/microweber-disposable-email-checker": "*",
+        "microweber-packages/microweber-role": "*",
+        "microweber-packages/microweber-core": "*"
+    },
+    "require-dev": {
+        "orchestra/testbench": "^8.0|^9.0|^10.0|^11.0",
+        "phpunit/phpunit": "^10.0|^11.0|^12.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "MicroweberPackages\\User\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "MicroweberPackages\\User\\Tests\\": "tests/"
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "replace": {
+        "microweber-packages/user": "*"
+    }
+}

@@ -1,0 +1,199 @@
+<?php
+
+namespace MicroweberPackages\User\Filament\Resources;
+
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Hash;
+use MicroweberPackages\Role\Models\Role;
+use MicroweberPackages\User\Filament\Resources\UsersResource\Pages;
+use Filament\Schemas\Schema;
+use Filament\Resources\Resource;
+use Filament\Tables;
+use Filament\Tables\Table;
+use MicroweberPackages\User\Models\User;
+use Filament\Actions\Action;
+use Filament\Actions\EditAction;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Illuminate\Database\Eloquent\Builder;
+
+class UsersResource extends Resource
+{
+    protected static ?string $model = User::class;
+
+    protected static string | \BackedEnum | null $navigationIcon = 'heroicon-o-users';
+
+    protected static string | \UnitEnum | null $navigationGroup = 'Users';
+
+    protected static ?int $navigationSort = 98;
+
+    protected static ?string $recordTitleAttribute = 'username';
+
+public static function form(Schema $schema): Schema
+    {
+        return $schema
+            ->schema([
+                TextInput::make('first_name'),
+                TextInput::make('last_name'),
+                                // from pre-filling admin's own credentials into the new-user form.
+                TextInput::make('username')->unique(
+                    ignoreRecord: true,
+                )->extraInputAttributes(['autocomplete' => 'off']),
+                TextInput::make('email')->email()->required()->unique(
+                    ignoreRecord: true,
+                )->extraInputAttributes(['autocomplete' => 'off']),
+                TextInput::make('password')
+                    ->password()
+                    ->required(fn (string $operation): bool => $operation === 'create')
+                    ->dehydrated(fn (?string $state): bool => filled($state))
+                    ->dehydrateStateUsing(fn (string $state): string => Hash::make($state))
+                    ->confirmed()
+                    ->minLength(4)
+                    ->extraInputAttributes(['autocomplete' => 'new-password']),
+                TextInput::make('password_confirmation')
+                    ->password()
+                    ->required(fn (string $operation): bool => $operation === 'create')
+                    ->dehydrated(false)
+                    ->extraInputAttributes(['autocomplete' => 'new-password']),
+                                // with Published, Autoplay, Muted etc. across all other admin forms).
+                // Is Admin defaults to false (new users are not admins by default).
+                // Is Active defaults to true (new users should be active immediately).
+                Toggle::make('is_admin')
+                    ->label('Is Admin')
+                    ->default(false),
+                Toggle::make('is_active')
+                    ->label('Is Active')
+                    ->default(true),
+                Select::make('roles')
+                    ->label('Roles')
+                    ->multiple()
+                    ->relationship('roles', 'name')
+                    ->preload()
+                    ->searchable(),
+            ]);
+    }
+
+    public static function table(Table $table): Table
+    {
+        return $table
+                        // created by PHPUnit factories (RFC 2606 reserved domains).
+            ->modifyQueryUsing(fn (Builder $query) => $query
+                ->where('email', 'NOT LIKE', '%@example.com')
+                ->where('email', 'NOT LIKE', '%@example.org')
+                ->where('email', 'NOT LIKE', '%@example.net')
+            )
+            ->columns([
+                                // replaced with email as first visible column.
+                Tables\Columns\TextColumn::make('email')->searchable(),
+                Tables\Columns\TextColumn::make('username')->searchable(),
+                Tables\Columns\TextColumn::make('first_name')->searchable()
+                    ->visibleFrom('md'),
+                Tables\Columns\TextColumn::make('last_name')->searchable()
+                    ->visibleFrom('md'),
+                                // because the roles relationship may be empty for non-RBAC installs.
+                Tables\Columns\TextColumn::make('roles.name')
+                    ->label('Roles')
+                    ->badge()
+                    ->default('—')
+                    ->toggleable(),
+                Tables\Columns\IconColumn::make('is_admin')
+                    ->label('Admin')
+                    ->boolean()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                                Tables\Columns\TextColumn::make('phone')->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                Tables\Columns\TextColumn::make('created_at')
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+            ])
+            ->filters([
+                //
+            ])
+->actions([
+            EditAction::make(),
+        ])
+        ->bulkActions([
+            BulkActionGroup::make([
+                DeleteBulkAction::make(),
+            ]),
+        ])
+        ->emptyStateHeading('No users yet')
+        ->emptyStateDescription('People with access to your admin appear here. Add your first user to get started.')
+        ->emptyStateIcon('heroicon-o-users')
+        ->emptyStateActions([
+            \Filament\Actions\CreateAction::make()
+                ->label('Add user'),
+        ]);
+    }
+
+    public static function getRelations(): array
+    {
+        return [
+            //
+        ];
+    }
+
+    public static function getPages(): array
+    {
+        return [
+            'index' => \MicroweberPackages\User\Filament\Resources\UsersResource\Pages\ListUsers::route('/'),
+            'create' => \MicroweberPackages\User\Filament\Resources\UsersResource\Pages\CreateUsers::route('/create'),
+            'edit' => \MicroweberPackages\User\Filament\Resources\UsersResource\Pages\EditUsers::route('/{record}/edit'),
+        ];
+    }
+
+    /**
+     * Get the attributes that should be searchable globally.
+     *
+     * @return array
+     */
+    public static function getGloballySearchableAttributes(): array
+    {
+        return ['username', 'email', 'first_name', 'last_name', 'phone'];
+    }
+
+    /**
+     * Get the title for the global search result.
+     *
+     * @param Model $record
+     * @return string
+     */
+    public static function getGlobalSearchResultTitle(Model $record): string
+    {
+        return $record->username ?? $record->email ?? 'User #' . $record->id;
+    }
+
+    /**
+     * Get the details for the global search result.
+     *
+     * @param Model $record
+     * @return array
+     */
+    public static function getGlobalSearchResultDetails(Model $record): array
+    {
+        return [
+            'Name' => $record->first_name . ' ' . $record->last_name,
+            'Email' => $record->email,
+            'Phone' => $record->phone,
+            'Admin' => $record->is_admin ? 'Yes' : 'No',
+            'Status' => $record->is_active ? 'Active' : 'Inactive',
+        ];
+    }
+
+    /**
+     * Get the actions for the global search result.
+     *
+     * @param Model $record
+     * @return array
+     */
+    public static function getGlobalSearchResultActions(Model $record): array
+    {
+        return [
+            Action::make('edit')
+                ->url(static::getUrl('edit', ['record' => $record])),
+        ];
+    }
+}

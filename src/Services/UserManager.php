@@ -1,0 +1,1716 @@
+<?php
+
+namespace MicroweberPackages\User\Services;
+
+use Illuminate\Auth\Events\Registered;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Cookie;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Session;
+use Illuminate\Support\Str;
+use MicroweberPackages\User\Notifications\EmailChangeRequestedNotification;
+use MicroweberPackages\User\Notifications\VerifyEmailChangeNotification;
+use MicroweberPackages\App\LoginAttempt;
+use MicroweberPackages\SocialLogin\Contracts\SocialLoginServiceContract;
+use MicroweberPackages\User\Http\Controllers\UserForgotPasswordController;
+use MicroweberPackages\User\Http\Controllers\UserLoginController;
+use MicroweberPackages\User\Http\Controllers\UserRegisterController;
+use MicroweberPackages\User\Http\Requests\LoginRequest;
+use MicroweberPackages\User\Http\Requests\RegisterRequest;
+use MicroweberPackages\User\Models\User;
+use Modules\Customer\Models\Customer;
+use MicroweberPackages\SocialLogin\Facades\SocialLogin;
+use MicroweberPackages\Http\Facades\Http as MicroweberHttp;
+use MicroweberPackages\Event\Facades\EventManager;
+use MicroweberPackages\Url\Facades\UrlManager;
+use MicroweberPackages\Notification\Facades\Notifications;
+use MicroweberPackages\Format\Facades\Format;
+use MicroweberPackages\Database\Facades\DatabaseManager;
+use MicroweberPackages\User\Services\Concerns\BuildsUserUrls;
+use MicroweberPackages\User\Services\Concerns\ReadsUserProfile;
+use MicroweberPackages\User\Services\Concerns\QueriesUsers;
+use MicroweberPackages\User\Services\Concerns\ManagesShippingAddress;
+use MicroweberPackages\User\Services\Concerns\ManagesUserTerms;
+
+class UserManager
+{
+    use BuildsUserUrls;
+    use ReadsUserProfile;
+    use QueriesUsers;
+    use ManagesShippingAddress;
+    use ManagesUserTerms;
+
+    /** @var \MicroweberPackages\App\LaravelApplication */
+    public $app;
+
+    public function __construct($app = null)
+    {
+
+        if (is_object($app)) {
+            $this->app = $app;
+        } else {
+            $this->app = mw();
+        }
+    }
+
+    public function is_admin()
+    {
+        if (!mw_is_installed()) {
+            return false;
+        }
+
+//        $adminUser = Auth::guard('admin')->user();
+//
+//        if ($adminUser &&  $adminUser->is_admin == 1) {
+//            return true;
+//        }
+
+        if (Auth::check()) {
+            return (bool) Auth::user()->is_admin;
+        }
+
+        return false;
+    }
+
+    public function id()
+    {
+        if (!mw_is_installed()) {
+            return false;
+        }
+
+        if (Auth::check()) {
+            return Auth::user()->id;
+        }
+
+        return false;
+    }
+
+    /**
+     * Allows you to login a user into the system.
+     *
+     * It also sets user session when the user is logged. <br />
+     * On 5 unsuccessful logins, blocks the ip for few minutes <br />
+     *
+     *
+     * @param array|string $params You can pass parameter as string or as array.
+     * @param mixed|string $params ['email'] optional If you set  it will use this email for login
+     * @param mixed|string $params ['password'] optional Use password for login, it gets trough $this->hash_pass() function
+     *
+     * @return array|bool
+     *
+     * @example
+     * <code>
+     * //login with username
+     * $this->login('username=test&password=pass')
+     * </code>
+     * @example
+     * <code>
+     * //login with email
+     * $this->login('email=my@email.com&password=pass')
+     * </code>
+     * @example
+     * <code>
+     * //login hashed password
+     * $this->login('email=my@email.com&password_hashed=c4ca4238a0b923820dcc509a6f75849b')
+     * </code>
+     *
+     * @category Users
+     *
+     * @uses     $this->hash_pass()
+     * @uses     parse_str()
+     * @uses     $this->get_all()
+     * @uses     $this->session_set()
+     * @uses     app()->log_manager->get()
+     * @uses     app()->log_manager->save()
+     * @uses     $this->login_set_failed_attempt()
+     * @uses     $this->update_last_login_time()
+     * @uses     EventManager::trigger()
+     * @function $this->login()
+     *
+     * @see      _table() For the database table fields
+     */
+
+    public function login($params)
+    {
+        $params = parse_params($params);
+        if (is_string($params)) {
+            $params = parse_params($params);
+        }
+        if(app()->bound('log_manager')) {
+
+            try {
+                $check = app()->log_manager->get('no_cache=1&count=1&updated_at=[mt]1 min ago&is_system=y&rel_type=login_failed&user_ip=' . user_ip());
+                $url = $this->app->url->current(1);
+                if ($check == 5) {
+                    $url_href = "<a href='$url' target='_blank'>$url</a>";
+                    app()->log_manager->save('title=User IP ' . user_ip() . ' is blocked for 1 minute for 5 failed logins.&content=Last login url was ' . $url_href . '&is_system=n&rel_type=login_failed&user_ip=' . user_ip());
+                }
+                if ($check > 5) {
+                    $check = $check - 1;
+                    return array('error' => 'There are ' . $check . ' failed login attempts from your IP in the last minute. Try again in 1 minute!');
+                }
+
+                $check2 = app()->log_manager->get('no_cache=1&is_system=y&count=1&created_at=[mt]10 min ago&updated_at=[lt]10 min&rel_type=login_failed&user_ip=' . user_ip());
+                if ($check2 > 25) {
+                    return array('error' => 'There are ' . $check2 . ' failed login attempts from your IP in the last 10 minutes. You are blocked for 10 minutes!');
+                }
+
+                // check by server REMOTE_ADDR , if the an atacker spoofs the user headers such as HTTP_X_FORWARDED or HTTP_CLIENT_IP
+                if (isset($_SERVER['REMOTE_ADDR'])) {
+                    if (user_ip() != $_SERVER['REMOTE_ADDR']) {
+                        $check3 = app()->log_manager->get('no_cache=1&is_system=y&count=1&created_at=[mt]15 min ago&updated_at=[lt]15 min&rel_type=login_failed&user_ip=' . $_SERVER['REMOTE_ADDR']);
+                        if ($check3 > 100) {
+                            return array('error' => 'There are ' . $check3 . ' failed login attempts from your IP in the last 15 minutes. You are blocked for 15 minutes!');
+                        }
+                    }
+                }
+            }  catch (\Exception $e) {
+
+            }
+
+        }
+
+        // So we use second parameter
+        if (!isset($params['username']) and isset($params['username_encoded']) and $params['username_encoded']) {
+            $params['username_encoded'] = rawurldecode($params['username_encoded']);
+            $decoded_username = @base64_decode($params['username_encoded']);
+            if (!empty($decoded_username)) {
+                $params['username'] = $decoded_username;
+            } else {
+                $params['username'] = @base62_decode($params['username_encoded']);
+            }
+            unset($params['username_encoded']);
+        }
+        if (!isset($params['password']) and isset($params['password_encoded']) and $params['password_encoded']) {
+            $params['password_encoded'] = rawurldecode($params['password_encoded']);
+            $decoded_password = @base64_decode($params['password_encoded']);
+            if (!empty($decoded_password)) {
+                $params['password'] = $decoded_password;
+            } else {
+                $params['password'] = @base62_decode($params['password_encoded']);
+            }
+            unset($params['password_encoded']);
+        }
+
+        $override = EventManager::trigger('mw.user.before_login', $params);
+
+        $redirect_after = isset($params['http_redirect']) ? $params['http_redirect'] : false;
+
+        if (!$redirect_after) {
+            //legacy redirect param
+            $redirect_after = isset($params['redirect']) ? $params['redirect'] : false;
+        }
+
+        $overiden = false;
+        $return_resp = false;
+        if (is_array($override)) {
+            foreach ($override as $resp) {
+                if (isset($resp['error']) or isset($resp['success'])) {
+                    if (isset($resp['success']) and isset($resp['http_redirect'])) {
+                        $redirect_after = $resp['http_redirect'];
+                    } else if (isset($resp['success']) and isset($resp['redirect'])) {
+                        $redirect_after = $resp['redirect'];
+                    }
+                    $return_resp = $resp;
+                    $overiden = true;
+                }
+            }
+        }
+        if ($overiden == true and $redirect_after != false) {
+            return UrlManager::redirect($redirect_after);
+        } elseif ($overiden == true and $return_resp) {
+            return $return_resp;
+        }
+
+        $controller = new UserLoginController();
+
+        $request = new LoginRequest($params);
+        $request->merge($params);
+
+        $rules = $request->rules();
+
+        try {
+            $validate = $request->validate($rules, $params);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            $errors = $e->validator->errors()->getMessages();
+
+            $response = [
+                'errors' => $errors
+            ];
+            return $response;
+        }
+
+        $response = $controller->login($request);
+
+        if ($response and is_object($response) and !is_array($response)) {
+            if(is_array($response)){
+                return $response;
+            }
+            if(is_object($response) and method_exists($response, 'getData')) {
+             $response = $response->getData();
+            }
+
+            $response = collect($response);
+            if(is_object($response)){
+                $response = $response->toArray();
+            }
+        }
+        return $response;
+
+    }
+
+    public function logout($params = false)
+    {
+        $cookie = [];
+        $cookie[] = Cookie::forget('XSRF-TOKEN');
+
+        Auth::logout();
+        Session::flush();
+        $aj = UrlManager::is_ajax();
+        $request = request();
+        $redirect_after = $request->input('redirect', false);
+        if ($redirect_after == false) {
+            $redirect_after = $request->input('redirect_to', false);
+        }
+        if (isset($_COOKIE['editmode'])) {
+            //     setcookie('editmode');
+        }
+
+        EventManager::trigger('mw.user.logout', $params);
+        if ($redirect_after == false and $aj == false) {
+            if (isset($_SERVER['HTTP_REFERER'])) {
+                return UrlManager::redirect($_SERVER['HTTP_REFERER'], $cookie);
+            }
+        }
+
+        if ($redirect_after == true) {
+            $redir = $redirect_after;
+
+            // $redir = site_url($redirect_after);
+            return UrlManager::redirect($redir, $cookie);
+        }
+
+        return true;
+    }
+
+    public function is_logged()
+    {
+        if (!mw_is_installed()) {
+            return false;
+        }
+
+        if (Auth::check()) {
+            $user = Auth::user();
+            if ($user and isset($user->is_active) and intval($user->is_active) == 0) {
+                // logout user if its set inactive in database
+                $this->logout();
+                return false;
+            }
+
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    public function login_as($params)
+    {
+        $is_a = $this->is_admin();
+        if ($is_a == true) {
+            return true;
+        }
+    }
+
+    public function has_access($function_name = '')
+    {
+        // will be updated with roles and perms
+        $is_a = $this->is_admin();
+        if ($is_a == true) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    public function admin_access()
+    {
+        if ($this->is_admin() == false) {
+            exit('You must be logged as admin');
+        }
+    }
+
+    /**
+     * Allows you to login a user into the system.
+     *
+     * It also sets user session when the user is logged. <br />
+     * On 5 unsuccessful logins, blocks the ip for few minutes <br />
+     *
+     *
+     * @param array|string $params You can pass parameter as string or as array.
+     * @param mixed|string $params ['email'] optional If you set  it will use this email for login
+     * @param mixed|string $params ['password'] optional Use password for login, it gets trough $this->hash_pass() function
+     *
+     * @return array|bool
+     *
+     * @example
+     * <code>
+     * //login with username
+     * $this->login('username=test&password=pass')
+     * </code>
+     * @example
+     * <code>
+     * //login with email
+     * $this->login('email=my@email.com&password=pass')
+     * </code>
+     * @example
+     * <code>
+     * //login hashed password
+     * $this->login('email=my@email.com&password_hashed=c4ca4238a0b923820dcc509a6f75849b')
+     * </code>
+     *
+     * @category Users
+     *
+     * @uses     $this->hash_pass()
+     * @uses     parse_str()
+     * @uses     $this->get_all()
+     * @uses     $this->session_set()
+     * @uses     app()->log_manager->get()
+     * @uses     app()->log_manager->save()
+     * @uses     $this->login_set_failed_attempt()
+     * @uses     $this->update_last_login_time()
+     * @uses     EventManager::trigger()
+     * @function $this->login()
+     * @deprecated this function is deprecated
+     * @see      _table() For the database table fields
+     */
+    public function codeLogin()
+    {
+        if (!function_exists('get_whitelabel_whmcs_settings')) {
+            return false;
+        }
+
+        $request = request();
+        $code = $request->input('code_login');
+        if (empty($code)) {
+            return redirect(admin_url());
+        }
+
+        $parse = parse_url(site_url());
+        if (!isset($parse['host'])) {
+            return redirect(admin_url());
+        }
+
+        $domain = $parse['host'];
+        $domain = str_replace('www.', '', $domain);
+
+        $whmcsSettings = get_whitelabel_whmcs_settings();
+
+        if (!isset($whmcsSettings['whmcs_url']) || empty($whmcsSettings['whmcs_url'])) {
+            return redirect(admin_url());
+        }
+
+        $verifyUrl = $whmcsSettings['whmcs_url'] . '/index.php?m=microweber_addon&function=verify_login_code&code=' . $code . '&domain=' . $domain;
+
+        $verifyCheck = @MicroweberHttp::url($verifyUrl)->get();
+        $verifyCheck = @json_decode($verifyCheck, true);
+
+        if (isset($verifyCheck['success']) && $verifyCheck['success'] == true && isset($verifyCheck['code']) && $verifyCheck['code'] == $code) {
+            $user = User::where('is_admin', '=', '1')->first();
+            if ($user !== null) {
+                \Illuminate\Support\Facades\Auth::login($user);
+
+                $httpRedirect = $request->input('http_redirect');
+                if (!empty($httpRedirect)) {
+                    // Validate redirect URL to prevent open redirect vulnerability
+                    $redirectUrl = filter_var($httpRedirect, FILTER_SANITIZE_URL);
+                    $siteUrl = site_url();
+                    // Only allow redirects to same site
+                    if (strpos($redirectUrl, $siteUrl) === 0 || strpos($redirectUrl, '/') === 0) {
+                        return redirect($redirectUrl);
+                    }
+                }
+            }
+
+            return redirect(admin_url());
+        }
+
+        return redirect(admin_url());
+    }
+
+    /**
+     * Function to get user printable name by given ID.
+     *
+     * @param        $id
+     * @param string $mode
+     *
+     * @return string
+     *
+     * @example
+     * <code>
+     * //get user name for user with id 10
+     * $this->nice_name(10, 'full');
+     * </code>
+     *
+     * @uses $this->get_by_id()
+     */
+
+    public $nice_name_cache = array();
+
+    public function register($params)
+    {
+        $params = xss_clean($params);
+
+        $controller = new UserRegisterController();
+
+        $request = new RegisterRequest($params);
+        $request->merge($params);
+
+        $rules = $request->rules();
+
+        try {
+            $validate = $request->validate($rules, $params);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            $errors = $e->validator->errors()->getMessages();
+
+            $response = [
+                'errors' => $errors
+            ];
+            return $response;
+        }
+
+        $response = $controller->register($request);
+
+        if (is_object($response) and method_exists($response, 'getData')) {
+            $data = $response->getData();
+            $response = (collection_to_array($data));
+
+            return $response;
+
+        }
+
+        return $response;
+
+        //  return RequestRoute::postJson(route('api.user.register'), $params);
+    }
+
+    public function after_register($user_id, $suppress_output = true)
+    {
+        if ($suppress_output == true) {
+            //ob_start();
+        }
+        $data = $this->get_by_id($user_id);
+        if (!$data) {
+            return;
+        }
+
+        $notif = array();
+        $notif['module'] = 'users';
+        $notif['rel_type'] = 'users';
+        $notif['rel_id'] = $user_id;
+        $notif['title'] = 'New user registration';
+        $notif['description'] = 'You have new user registration';
+        $notif['content'] = 'You have new user registered with the username [' . $data['username'] . '] and id [' . $user_id . ']';
+        Notifications::save($notif);
+
+        if(app()->bound('log_manager')) {
+
+            app()->log_manager->save($notif);
+            $this->register_email_send($user_id);
+        }
+        EventManager::trigger('mw.user.after_register', $data);
+        if ($suppress_output == true) {
+            if (ob_get_length()) {
+                ob_end_clean();
+            }
+
+        }
+    }
+
+    public function register_email_send($user_id = false)
+    {
+        if ($user_id == false) {
+            $user_id = $this->id();
+        }
+        if ($user_id == false) {
+            return;
+        }
+        $data = $this->get_by_id($user_id);
+        if (!$data) {
+            return;
+        }
+        if (is_array($data)) {
+            $register_email_enabled = $this->app->option_manager->get('register_email_enabled', 'users');
+            if ($register_email_enabled == true) {
+
+                /*
+                $register_email_subject = $this->app->option_manager->get('register_email_subject', 'users');
+                $register_email_content = $this->app->option_manager->get('register_email_content', 'users');
+                 */
+
+                // Get register mail temlate
+                $new_user_registration_template_id = $this->app->option_manager->get('new_user_registration_mail_template', 'users');
+                $mail_template = get_mail_template_by_id($new_user_registration_template_id, 'new_user_registration');
+
+                $register_email_subject = $mail_template['subject'];
+                $register_email_content = $mail_template['message'];
+
+                $appendFiles = array();
+                if (!empty(get_option('append_files', 'mail_template_id_' . $new_user_registration_template_id))) {
+                    $appendFiles = explode(",", get_option('append_files', 'mail_template_id_' . $new_user_registration_template_id));
+                }
+
+                if ($register_email_subject == false or trim($register_email_subject) == '') {
+                    $register_email_subject = 'Thank you for your registration!';
+                }
+                $to = $data['email'];
+                if ($register_email_content != false and trim($register_email_subject) != '') {
+
+                    $verify_email_link = Format::encrypt($data['id']);
+                    $verify_email_link = api_url('users/verify_email_link') . '?key=' . $verify_email_link;
+                    $data['verify_email_link'] = $verify_email_link;
+
+                    if (isset($to) and (filter_var($to, FILTER_VALIDATE_EMAIL))) {
+
+                        $twig = new \MicroweberPackages\View\TwigView();
+                        $parsed_twig_email = $twig->render($register_email_content, $data);
+
+                        $sender = app(\MicroweberPackages\MailSender\Services\MailSenderService::class);
+                        return $sender->send($to, $register_email_subject, $parsed_twig_email, false, false, false, false, false, false, $appendFiles);
+
+                    }
+                }
+            }
+        }
+    }
+
+    public function csrf_validate(&$data)
+    {
+        $data['_token_header'] = request()->header('X-CSRF-TOKEN');
+        $session_token = Session::token();
+        if (is_array($data) and $this->session_id()) {
+            foreach ($data as $k => $v) {
+                if ($k == 'token' or $k == '_token' or $k == '_token_header') {
+                    if ($session_token === $v) {
+                        unset($data[$k]);
+
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+
+    public function hash_pass($pass)
+    {
+        $hash = \Hash::make($pass);
+
+        return $hash;
+    }
+
+    /**
+     * Sensitive-action re-authentication guard for self-service credential
+     * changes. When a logged-in user changes their OWN email or password through
+     * save(), require either a recent password confirmation (within
+     * auth.password_timeout) or a valid current_password in the request.
+     *
+     * Returns an error array to abort the save, or null to proceed. Only reached
+     * for non-force saves (registration / password-reset / OAuth set force_save
+     * and skip this); admins editing ANOTHER user are exempt.
+     *
+     * @param array $params
+     * @return array|null
+     */
+    protected function guardSelfCredentialChange($params)
+    {
+        if (!isset($params['id']) || intval($params['id']) === 0) {
+            return null;
+        }
+
+        $target_id = intval($params['id']);
+        $current_user_id = intval(user_id());
+
+        // Only self-edits are guarded; an admin editing someone else is user
+        // management (they are not expected to know the target's password).
+        if ($current_user_id === 0 || $current_user_id !== $target_id) {
+            return null;
+        }
+
+        $user = User::find($target_id);
+        if (!$user) {
+            return null;
+        }
+
+        $changing_password = isset($params['password']) && trim((string) $params['password']) !== '';
+
+        $changing_email = isset($params['email'])
+            && trim((string) $params['email']) !== ''
+            && trim((string) $params['email']) !== trim((string) $user->email);
+
+        if (!$changing_password && !$changing_email) {
+            return null;
+        }
+
+        // A recent explicit password confirmation in this session is enough.
+        if ($this->hasRecentPasswordConfirmation()) {
+            return null;
+        }
+
+        // Otherwise the request must carry a matching current_password.
+        $current_password = isset($params['current_password']) ? (string) $params['current_password'] : '';
+        if ($current_password !== '' && $user->password && Hash::check($current_password, $user->password)) {
+            $this->markPasswordConfirmed();
+
+            return null;
+        }
+
+        return array(
+            'error' => _e('Please confirm your current password to change your email or password.', true),
+            'form_data_required' => 'current_password',
+            'form_data_module' => 'users/profile/confirm_password',
+        );
+    }
+
+    /**
+     * Was the user's password confirmed recently (same window Laravel's
+     * password.confirm middleware uses)?
+     */
+    protected function hasRecentPasswordConfirmation()
+    {
+        $confirmed_at = (int) Session::get('auth.password_confirmed_at', 0);
+        if ($confirmed_at === 0) {
+            return false;
+        }
+
+        $window = (int) Config::get('auth.password_timeout', 900);
+
+        return (time() - $confirmed_at) < $window;
+    }
+
+    protected function markPasswordConfirmed()
+    {
+        Session::put('auth.password_confirmed_at', time());
+    }
+
+    /**
+     * Is the verified email-change flow enabled? Default ON; an explicit disable
+     * value in get_option('email_change_verify', 'users') turns it off (useful on
+     * installs without working mail — the current_password guard still protects
+     * the change either way).
+     */
+    public function emailChangeVerificationEnabled(): bool
+    {
+        $value = get_option('email_change_verify', 'users');
+
+        if ($value === false || $value === null) {
+            return true;
+        }
+
+        return ! in_array(strtolower(trim((string) $value)), ['n', 'no', '0', 'false', ''], true);
+    }
+
+    /**
+     * When a logged-in user changes their OWN email and verification is enabled,
+     * park the new address (pending_email) instead of applying it, and drop
+     * `email` from the save so the current address stays active. Admins editing
+     * another user, same-value re-posts, and taken addresses fall through to the
+     * normal (immediate) path.
+     *
+     * @param array $params
+     * @return array
+     */
+    protected function maybeDeferSelfEmailChange($params)
+    {
+        if (! $this->emailChangeVerificationEnabled()) {
+            return $params;
+        }
+
+        if (! isset($params['id']) || intval($params['id']) === 0) {
+            return $params;
+        }
+
+        $target_id = intval($params['id']);
+        if (intval(user_id()) !== $target_id) {
+            return $params; // admin editing another user -> immediate
+        }
+
+        if (! isset($params['email'])) {
+            return $params;
+        }
+
+        $new_email = trim((string) $params['email']);
+        if ($new_email === '' || ! filter_var($new_email, FILTER_VALIDATE_EMAIL)) {
+            return $params;
+        }
+
+        $user = User::find($target_id);
+        if (! $user || $new_email === trim((string) $user->email)) {
+            return $params; // no actual change
+        }
+
+        // If the address is already taken, let the normal uniqueness error fire.
+        $taken = User::where('email', $new_email)->where('id', '!=', $user->id)->first();
+        if ($taken) {
+            return $params;
+        }
+
+        $this->requestEmailChange($user, $new_email);
+        unset($params['email']);
+
+        return $params;
+    }
+
+    /**
+     * Park a pending email change and send: a confirmation link to the NEW
+     * address, and a security notice to the current (old) address.
+     */
+    public function requestEmailChange(User $user, string $newEmail): void
+    {
+        $token = Str::random(64);
+
+        $user->pending_email = $newEmail;
+        $user->pending_email_hash = hash('sha256', $token);
+        $user->pending_email_created_at = date('Y-m-d H:i:s');
+        $user->save();
+
+        try {
+            Notification::route('mail', $newEmail)
+                ->notify(new VerifyEmailChangeNotification((int) $user->id, $token, $newEmail));
+
+            $user->notify(new EmailChangeRequestedNotification($newEmail));
+        } catch (\Throwable $e) {
+            // A notification failure must not undo the parked request.
+        }
+    }
+
+    /**
+     * Apply a pending email change from the verification link's token. Returns
+     * ['success' => ...] or ['error' => ...].
+     *
+     * @param int|string $userId
+     * @param string $token
+     * @return array
+     */
+    public function confirmEmailChange($userId, $token)
+    {
+        $userId = intval($userId);
+        $token = (string) $token;
+
+        if ($userId === 0 || $token === '') {
+            return array('error' => 'Invalid confirmation link.');
+        }
+
+        $user = User::find($userId);
+        if (! $user || ! $user->pending_email || ! $user->pending_email_hash) {
+            return array('error' => 'This email change request is no longer valid.');
+        }
+
+        if (! hash_equals((string) $user->pending_email_hash, hash('sha256', $token))) {
+            return array('error' => 'Invalid confirmation link.');
+        }
+
+        // 60-minute expiry.
+        $requested_at = $user->pending_email_created_at ? strtotime((string) $user->pending_email_created_at) : 0;
+        if ($requested_at === 0 || (time() - $requested_at) > 3600) {
+            $this->clearPendingEmail($user);
+
+            return array('error' => 'This confirmation link has expired. Please request the change again.');
+        }
+
+        $new_email = $user->pending_email;
+
+        $taken = User::where('email', $new_email)->where('id', '!=', $user->id)->first();
+        if ($taken) {
+            $this->clearPendingEmail($user);
+
+            return array('error' => 'That email address is already in use.');
+        }
+
+        $user->email = $new_email;
+        $this->clearPendingEmail($user, false);
+
+        try {
+            $user->save();
+        } catch (\Throwable $e) {
+            return array('error' => 'That email address could not be saved.');
+        }
+
+        EventManager::trigger('mw.user.change_email', array('id' => $user->id, 'email' => $new_email));
+
+        return array('success' => 'Your email address has been updated.');
+    }
+
+    protected function clearPendingEmail(User $user, bool $persist = true): void
+    {
+        $user->pending_email = null;
+        $user->pending_email_hash = null;
+        $user->pending_email_created_at = null;
+
+        if ($persist) {
+            $user->save();
+        }
+    }
+
+    /**
+     * Reject a self-service email change that policy does not allow. Returns an
+     * error array to abort, or null to proceed. Admins and non-self edits pass
+     * through; social-login accounts are always blocked; everyone else is gated
+     * by the allow-user-email-change flag (off by default).
+     *
+     * @param array $params
+     * @return array|null
+     */
+    protected function enforceEmailChangePolicy($params)
+    {
+        if (! isset($params['id']) || intval($params['id']) === 0) {
+            return null;
+        }
+
+        $target_id = intval($params['id']);
+        if (intval(user_id()) !== $target_id) {
+            return null; // admin editing another user (auth already checked)
+        }
+
+        if ($this->is_admin()) {
+            return null; // admins can always change their own email
+        }
+
+        if (! isset($params['email'])) {
+            return null;
+        }
+
+        $new_email = trim((string) $params['email']);
+        if ($new_email === '') {
+            return null;
+        }
+
+        $user = User::find($target_id);
+        if (! $user || $new_email === trim((string) $user->email)) {
+            return null; // no actual change
+        }
+
+        if ($this->userMayChangeOwnEmail($user)) {
+            return null;
+        }
+
+        if ($this->isSocialLoginUser($user)) {
+            return array('error' => _e('Your email is managed by your social login and cannot be changed here.', true));
+        }
+
+        return array('error' => _e('Changing your email address is disabled. Please contact an administrator.', true));
+    }
+
+    /**
+     * May this user change their OWN email? Social-login accounts never can (the
+     * email is the provider's identity and their login matches on it); everyone
+     * else only when the allow-user-email-change flag is on.
+     */
+    public function userMayChangeOwnEmail($user): bool
+    {
+        if ($this->isSocialLoginUser($user)) {
+            return false;
+        }
+
+        return $this->allowUserEmailChangeEnabled();
+    }
+
+    /**
+     * Is self-service email change allowed? Reads env ALLOW_USER_EMAIL_CHANGE
+     * first, then option allow_user_email_change ('users'); OFF by default.
+     */
+    public function allowUserEmailChangeEnabled(): bool
+    {
+        $env = env('ALLOW_USER_EMAIL_CHANGE');
+        if ($env !== null && $env !== '') {
+            return filter_var($env, FILTER_VALIDATE_BOOLEAN);
+        }
+
+        $option = get_option('allow_user_email_change', 'users');
+        if ($option === false || $option === null) {
+            return false;
+        }
+
+        return in_array(strtolower(trim((string) $option)), ['1', 'y', 'yes', 'true', 'on'], true);
+    }
+
+    /**
+     * Is the account managed by a social/OAuth login? Checks the legacy
+     * oauth_provider column, the users_oauth records and the socialite_users
+     * links (Filament). Such accounts must not change their email (it breaks the
+     * provider's email-based login matching).
+     */
+    public function isSocialLoginUser($user): bool
+    {
+        if (! $user) {
+            return false;
+        }
+
+        if (! empty($user->oauth_provider)) {
+            return true;
+        }
+
+        foreach (['users_oauth', 'socialite_users'] as $table) {
+            try {
+                if (\Illuminate\Support\Facades\Schema::hasTable($table)
+                    && DB::table($table)->where('user_id', $user->id)->exists()) {
+                    return true;
+                }
+            } catch (\Throwable $e) {
+                // ignore a missing table / column
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Allows you to save users in the database.
+     *
+     * By default it have security rules.
+     *
+     * If you are admin you can save any user in the system;
+     *
+     * However if you are regular user you must post param id with the current user id;
+     *
+     * @param  $params
+     * @param  $params ['id'] = $user_id; // REQUIRED , you must set the user id.
+     *                 For security reasons, to make new user please use user_register() function that requires captcha
+     *                 or write your own save_user wrapper function that sets  mw_var('force_save_user',true);
+     *                 and pass its params to save_user();
+     * @param  $params ['is_active'] = 1; //default is 'n'
+     *
+     * @usage
+     *
+     * $upd = array();
+     * $upd['id'] = 1;
+     * $upd['email'] = $params['new_email'];
+     * $upd['password'] = $params['passwordhash'];
+     * mw_var('force_save_user', false|true); // if true you want to make new user or foce save ... skips id check and is admin check
+     * mw_var('save_user_no_pass_hash', false|true); //if true skips pass hash function and saves password it as is in the request, please hash the password before that or ensure its hashed
+     * $s = save_user($upd);
+     *
+     * @return bool|int
+     */
+    public $force_save = false;
+
+    public function save($params)
+    {
+        $force = false;
+        if (defined('MW_FORCE_USER_SAVE')) {
+            $force = MW_FORCE_USER_SAVE;
+        } elseif ($this->force_save) {
+            $force = $this->force_save;
+        } elseif (mw_var('force_save_user')) {
+            $force = mw_var('force_save_user');
+        }
+        if (!$force) {
+            if (defined('MW_API_CALL') and mw_is_installed() == true) {
+                if (isset($params['is_admin']) and $this->is_admin() == false and !is_null(User::first())) {
+                    unset($params['is_admin']);
+                }
+            }
+        }
+        if ($force == false) {
+            if (!is_cli()) {
+                $validate_token = app()->user_manager->csrf_validate($params);
+                if ($validate_token == false) {
+                    return array(
+                        'error' => _e('Confirm edit of profile', true),
+                        'form_data_required' => 'token',
+                        'form_data_module' => 'users/profile/confirm_edit'
+                    );
+                }
+            }
+
+            if (isset($params['id']) and $params['id'] != 0) {
+                $adm = $this->is_admin();
+                if ($adm == false) {
+                    $is_logged = user_id();
+                    if ($is_logged == false or $is_logged == 0) {
+                        return array('error' => 'You must be logged to save user');
+                    } elseif (intval($is_logged) == intval($params['id']) and intval($params['id']) != 0) {
+                        // the user is editing their own profile
+                    } else {
+                        return array('error' => 'You must be logged to as admin save this user');
+                    }
+                }
+            } else {
+                if (defined('MW_API_CALL') and mw_is_installed() == true) {
+                    $adm = $this->is_admin();
+                    if ($adm == false) {
+                        $params['id'] = $this->id();
+                        $is_logged = user_id();
+                        if (intval($params['id']) != 0 and $is_logged != $params['id']) {
+                            return array('error' => 'You must be logged save your settings');
+                        }
+                    } else {
+
+                        if (!isset($params['id'])) {
+                            $params['id'] = $this->id();
+                        }
+                    }
+                }
+            }
+
+            // Email-change policy: a non-admin may change their OWN email only
+            // when it is permitted (allow-user-email-change flag, OFF by default)
+            // and the account is not social-login managed (social email is the
+            // provider's identity). Admins can always change any email.
+            $email_policy = $this->enforceEmailChangePolicy($params);
+            if (is_array($email_policy)) {
+                return $email_policy;
+            }
+
+            // Sensitive-action re-authentication: changing your OWN email or
+            // password requires either a recent password confirmation or a valid
+            // current_password in the request. Force-saved paths (registration,
+            // password reset, OAuth) never reach here, and admins editing ANOTHER
+            // user are exempt (that is user management, not self-service).
+            $credential_guard = $this->guardSelfCredentialChange($params);
+            if (is_array($credential_guard)) {
+                return $credential_guard;
+            }
+            unset($params['current_password']);
+
+            // A self-service email change is parked until the NEW address is
+            // confirmed (keeps the old address active); other fields still save.
+            $params = $this->maybeDeferSelfEmailChange($params);
+        }
+
+        $data_to_save = $params;
+
+        if (isset($data_to_save['id']) and $data_to_save['id'] != 0 and isset($data_to_save['email']) and $data_to_save['email'] != false) {
+            $old_user_data = $this->get_by_id($data_to_save['id']);
+            if (isset($old_user_data['email']) and $old_user_data['email'] != false) {
+                if ($data_to_save['email'] != $old_user_data['email']) {
+
+                    $old_user_data_reset = User::where('id', $data_to_save['id'])->first();
+                    if ($old_user_data_reset) {
+                        $old_user_data_reset->password_reset_hash = null;
+                        $old_user_data_reset->save();
+                    }
+
+//                    if (isset($old_user_data['password_reset_hash']) and $old_user_data['password_reset_hash'] != false) {
+//                        $hash_cache_id = md5(serialize($old_user_data)) . uniqid() . rand();
+//                        $data_to_save['password_reset_hash'] = $hash_cache_id;
+//                    }
+                }
+            }
+        }
+        if (isset($data_to_save['email']) and isset($data_to_save['id'])) {
+            $email = trim($data_to_save['email']);
+            if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                $check_existing = array();
+                $check_existing['email'] = $email;
+                $check_existing['single'] = 1;
+                $check_existing = $this->get_all($check_existing);
+
+                if (isset($check_existing['id']) and $check_existing['id'] != $data_to_save['id']) {
+                    return array('error' => 'User with this email already exists! Try different email address!');
+                }
+            }
+        }
+
+        if (isset($params['id']) and intval($params['id']) != 0) {
+            $user = User::find($params['id']);
+
+        } else {
+            $user = new User();
+        }
+        $id_to_return = false;
+
+        $data_to_save = Format::clean_xss($data_to_save);
+
+        if (isset($data_to_save['password2'])) {
+            $data_to_save['verify_password'] = $data_to_save['password2'];
+        }
+
+        $checkValidator = $user->validateAndFill($data_to_save);
+        $getValidatorMessages = $user->getValidatorMessages();
+
+        if ($checkValidator) {
+
+            if (isset($data_to_save['id'])) {
+
+                $can_edit = $this->__check_id_has_ability_to_edit_user($data_to_save['id']);
+                if (!$can_edit) {
+                    return array('error' => 'You do not have permission to edit this user');
+                }
+            }
+
+            if (isset($user->id)) {
+                $data_to_save['id'] = $params['id'] = $user->id;
+            }
+
+            if (isset($data_to_save['id']) and $data_to_save['id'] == 0) {
+                if ((isset($data_to_save['username']) and $data_to_save['username'] == false) and (isset($data_to_save['email']) and $data_to_save['email'] == false)
+                ) {
+                    return array('error' => 'You must set email or username');
+                }
+            }
+
+            if (isset($data_to_save['username']) and $data_to_save['username'] != false) {
+                $check_existing = array();
+                $check_existing['username'] = $data_to_save['username'];
+                $check_existing['single'] = 1;
+                $check_existing = $this->get_all($check_existing);
+
+                $err = array('error' => 'User with this username already exists! Try different username!');
+
+                if ($check_existing) {
+                    if (isset($data_to_save['id']) and $data_to_save['id'] != false) {
+                        if (isset($check_existing['id']) and $check_existing['id'] != $data_to_save['id']) {
+                            return $err;
+                        }
+                    } else {
+                        return $err;
+                    }
+                }
+            }
+
+            if ($this->is_admin()) {
+                if (isset($params['roles'][0])) {
+                    if ($params['roles'][0] == 'Super Admin') {
+                        $user->is_admin = 1;
+                    } else if ($params['roles'][0] == 'User') {
+                        $user->is_admin = 0;
+                    } else {
+                        $user->is_admin = 0;
+
+                        $user->assignRole($params['roles']);
+                    }
+                }
+                if (isset($params['is_active'])) {
+                    $user->is_active = $params['is_active'];
+                }
+            }
+
+            try {
+                $save = $user->save();
+            } catch (\Exception $e) {
+                return array('error' => $e->getMessage());
+            }
+
+            if (isset($params['id']) and intval($params['id']) != 0) {
+                $id_to_return = intval($params['id']);
+            } else {
+                $id_to_return = DB::getPdo()->lastInsertId();
+            }
+            $params['id'] = $id_to_return;
+            EventManager::trigger('mw.user.save', $params);
+        } else {
+            $errorMessages = '';
+            foreach ($getValidatorMessages as $validatorInputs) {
+                foreach ($validatorInputs as $validatorInput) {
+                    $errorMessages .= $validatorInput . '<br />';
+                }
+            }
+            return array('error' => $errorMessages);
+        }
+        $this->app->cache_manager->delete('users' . DIRECTORY_SEPARATOR . 'global');
+        $this->app->cache_manager->delete('users' . DIRECTORY_SEPARATOR . '0');
+        $this->app->cache_manager->delete('users' . DIRECTORY_SEPARATOR . $id_to_return);
+
+        return $id_to_return;
+    }
+
+    public function login_set_attempt($params = array())
+    {
+        if (!empty($params)) {
+            if (isset($params['username']) || isset($params['email'])) {
+
+                if (isset($params['username']) && $params['username'] != false and filter_var($params['username'], FILTER_VALIDATE_EMAIL)) {
+                    $params['email'] = $params['username'];
+                }
+
+                $findUserId = false;
+                $findByUsername = false;
+
+                if (isset($params['username'])) {
+                    $findByUsername = User::where('username', $params['username'])->first();
+                }
+
+                if ($findByUsername) {
+                    $findUserId = $findByUsername->id;
+                } else {
+                    if (isset($params['email'])) {
+                        $findByEmail = User::where('email', $params['email'])->first();
+                        if ($findByEmail) {
+                            $findUserId = $findByEmail->id;
+                        }
+                    }
+                }
+
+                if (!$findUserId) {
+                    return;
+                }
+
+                $loginAttempt = new LoginAttempt();
+                if (isset($params['username'])) {
+                    $loginAttempt->username = $params['username'];
+                }
+                if (isset($params['email'])) {
+                    $loginAttempt->email = $params['email'];
+                }
+
+                $loginAttempt->user_id = $findUserId;
+                $loginAttempt->time = time();
+                $loginAttempt->ip = user_ip();
+                $loginAttempt->success = $params['success'];
+                $loginAttempt->save();
+            }
+        }
+    }
+
+    public function login_set_success_attempt($params = array())
+    {
+        $params['success'] = true;
+        $this->login_set_attempt($params);
+        if(app()->bound('log_manager')) {
+            app()->log_manager->save('title=Success login&is_system=y&rel_type=login_succes&user_ip=' . user_ip());
+        }
+    }
+
+    public function login_set_failed_attempt($params = array())
+    {
+        $params['success'] = false;
+        $this->login_set_attempt($params);
+        if(app()->bound('log_manager')) {
+            app()->log_manager->save('title=Failed login&is_system=y&rel_type=login_failed&user_ip=' . user_ip());
+        }
+    }
+
+    public function delete($data)
+    {
+        if (!is_array($data)) {
+            $new_data = array();
+            $new_data['id'] = intval($data);
+            $data = $new_data;
+        }
+        if (isset($data['id'])) {
+            $c_id = intval($data['id']);
+            $can_edit = $this->__check_id_has_ability_to_edit_user($c_id);
+            if (!$can_edit) {
+                return false;
+            }
+
+            DatabaseManager::delete_by_id('users', $c_id);
+
+            return $c_id;
+        }
+
+        return $data;
+    }
+
+    public function reset_password_from_link($params)
+    {
+        if (!isset($params['captcha'])) {
+            return array('error' => 'Please enter the captcha answer!');
+        } else {
+            $validate_captcha = $this->app->captcha_manager->validate($params['captcha']);
+            if (!$validate_captcha) {
+                return array('error' => 'Invalid captcha answer!', 'captcha_error' => true);
+            }
+        }
+
+        if (!isset($params['id']) or trim($params['id']) == '') {
+            return array('error' => 'You must send id parameter');
+        }
+
+        if (isset($params['id'])) {
+
+            $can_edit = $this->__check_id_has_ability_to_edit_user($params['id']);
+            if (!$can_edit) {
+                return array('error' => 'You do not have permission to edit this user');
+            }
+        }
+
+        if (!isset($params['password_reset_hash']) or trim($params['password_reset_hash']) == '') {
+            return array('error' => 'You must send password_reset_hash parameter');
+        }
+
+        if (!isset($params['pass1']) or trim($params['pass1']) == '') {
+            return array('error' => 'Enter new password!');
+        }
+
+        if (!isset($params['pass2']) or trim($params['pass2']) == '') {
+            return array('error' => 'Enter repeat new password!');
+        }
+
+        if ($params['pass1'] != $params['pass2']) {
+            return array('error' => 'Your passwords does not match!');
+        }
+
+        $data1 = array();
+        $data1['id'] = intval($params['id']);
+        $data1['password_reset_hash'] = DatabaseManager::escape_string($params['password_reset_hash']);
+        $table = 'users';
+
+        $check = User::whereNotNull('password_reset_hash')->where('password_reset_hash', $data1['password_reset_hash'])->where('id', $data1['id'])->first();
+        if (!$check) {
+            return array('error' => 'Invalid data or expired link!');
+        } else {
+            $data1['password_reset_hash'] = '';
+        }
+
+        $this->force_save = true;
+        $save = DatabaseManager::save($table, $data1);
+        $save_user = array();
+        $save_user['id'] = intval($params['id']);
+        $save_user['password'] = $params['pass1'];
+        if (isset($check['email'])) {
+            $save_user['email'] = $check['email'];
+        }
+        EventManager::trigger('mw.user.change_password', $save_user);
+
+        $this->save($save_user);
+        if(app()->bound('log_manager')) {
+            $notif = array();
+            $notif['module'] = 'users';
+            $notif['rel_type'] = 'users';
+            $notif['rel_id'] = $data1['id'];
+            $notif['title'] = "The user have successfully changed password. (User id: {$data1['id']})";
+
+            app()->log_manager->save($notif);
+        }
+        $this->session_end();
+
+        return array('success' => 'Your password have been changed!');
+    }
+
+    public function session_end()
+    {
+        Session::flush();
+        Session::regenerate();
+    }
+
+    public function send_forgot_password($params)
+    {
+
+        $request = new Request();
+        $params['format'] = 'json';
+
+        $request->merge($params);
+
+        $controller = new UserForgotPasswordController();
+
+        $response = $controller->send($request);
+
+        if (is_object($response) and method_exists($response, 'getData')) {
+            $response = collect($response->getData())->toArray();
+            return $response;
+
+        }
+        return $response;
+
+        //  return RequestRoute::postJson(route('api.user.password.email'), $params);
+    }
+
+    public function social_login($params)
+    {
+        if (is_string($params)) {
+            $params = parse_params($params);
+        }
+
+        $return_after_login = false;
+        if (isset($params['redirect'])) {
+            $return_after_login = $params['redirect'];
+            $this->session_set('user_after_login', $return_after_login);
+        } elseif (isset($_SERVER['HTTP_REFERER']) and stristr($_SERVER['HTTP_REFERER'], UrlManager::site())) {
+            $return_after_login = $_SERVER['HTTP_REFERER'];
+            $this->session_set('user_after_login', $return_after_login);
+        }
+
+        $request = request();
+        $provider = false;
+        if ($request->has('provider')) {
+            $provider = $request->input('provider');
+            $provider = trim(strip_tags($provider));
+        }
+
+        if ($provider != false and isset($params) and !empty($params)) {
+            try {
+                /** @var SocialLoginServiceContract $socialLogin */
+                $socialLogin = SocialLogin::getFacadeRoot();
+                return $socialLogin->redirect($provider);
+            } catch (\InvalidArgumentException $e) {
+                return $e->getMessage();
+            }
+        }
+    }
+
+    public function make_logged($user_id, $remember = false)
+    {
+        if (is_array($user_id)) {
+            if (isset($user_id['id'])) {
+                $user_id = $user_id['id'];
+            }
+        }
+
+        if (intval($user_id) > 0) {
+            $data = $this->get_by_id($user_id);
+            if ($data == false) {
+                return false;
+            } else {
+                if (is_array($data)) {
+
+                    $user_session = array();
+                    $user_session['is_logged'] = 'yes';
+                    $user_session['user_id'] = $data['id'];
+
+                    if (!defined('USER_ID')) {
+                        define('USER_ID', $data['id']);
+                    }
+
+                    $old_sid = Session::getId();
+                    $this->session_set('old_sid', $old_sid);
+
+                    $data['old_sid'] = $old_sid;
+                    $user_session['old_session_id'] = $old_sid;
+                    $current_user = Auth::user();
+                    if ((isset($current_user->id) and $current_user->id == $user_id)) {
+                        Auth::login(Auth::user(), $remember);
+                    } else {
+                        Auth::loginUsingId($data['id'], $remember);
+                    }
+//
+//                    Session::setId($old_sid);
+//                    Session::save();
+
+                    EventManager::trigger('mw.user.login', $data);
+                    $this->session_set('user_session', $user_session);
+                    $user_session = $this->session_get('user_session');
+
+                    $this->update_last_login_time();
+                    $user_session['success'] = _e('You are logged in!', true);
+                    return $user_session;
+                }
+            }
+        }
+    }
+
+    public function update_last_login_time()
+    {
+        $uid = user_id();
+        if (intval($uid) > 0) {
+            $data_to_save = array();
+            $data_to_save['id'] = $uid;
+            $data_to_save['last_login'] = date('Y-m-d H:i:s');
+            $data_to_save['last_login_ip'] = user_ip();
+
+            $table = 'users';
+            $save = DatabaseManager::save($table, $data_to_save);
+            if(app()->bound('log_manager')) {
+                app()->log_manager->delete('is_system=y&rel_type=login_failed&user_ip=' . user_ip());
+            }
+        }
+    }
+
+    public function social_login_process($params = false)
+    {
+        $request = request();
+        $user_after_login = $this->session_get('user_after_login');
+
+        $provider = $request->input('provider');
+        $hauthDone = $request->input('hauth_done');
+
+        if (empty($provider) && !empty($hauthDone)) {
+            $provider = $hauthDone;
+        }
+
+        if (empty($provider)) {
+            return UrlManager::redirect(site_url());
+        }
+
+        $auth_provider = e($provider);
+
+        try {
+            /** @var \MicroweberPackages\SocialLogin\Contracts\SocialLoginServiceContract $socialLogin */
+            $socialLogin = SocialLogin::getFacadeRoot();
+            $socialUser = $socialLogin->handleCallback($auth_provider);
+
+            $email = $socialUser->email;
+            $username = $socialUser->nickname;
+            $oauth_id = $socialUser->id;
+            $avatar = $socialUser->avatar;
+            $name = $socialUser->name;
+
+            $existing = array();
+
+            if ($email != false) {
+                $existing['email'] = $email;
+            } else {
+                $existing['oauth_uid'] = $oauth_id;
+                $existing['oauth_provider'] = $auth_provider;
+            }
+
+            if (empty($username) and !empty($oauth_id)) {
+                $username = 'user_' . $oauth_id;
+            } else if (empty($username) and !empty($email)) {
+                $username = 'user_' . md5($email);
+            }
+
+            $save = $existing;
+            $save['thumbnail'] = $avatar;
+            $save['username'] = $username;
+            $save['is_active'] = 1;
+            $save['is_admin'] = 0;
+            $save['first_name'] = $socialUser->firstName ?? $name;
+            $save['last_name'] = $socialUser->lastName ?? '';
+            $save['oauth_uid'] = $oauth_id;
+            $save['oauth_provider'] = $auth_provider;
+
+            $existing['single'] = true;
+            $existing['limit'] = 1;
+            $existing = $this->get_all($existing);
+            if (!defined('MW_FORCE_USER_SAVE')) {
+                define('MW_FORCE_USER_SAVE', true);
+            }
+
+            if ($existing and isset($existing['id'])) {
+                if (!isset($existing['oauth_uid'])) {
+                    $existingUser = User::where('id', '=', $existing['id'])->first();
+
+                    if ($existingUser) {
+                        $existingUser->oauth_uid = $oauth_id;
+                        $existingUser->oauth_provider = $auth_provider;
+                        $existingUser->save();
+                    }
+                }
+
+                if ($existing['is_active'] != 1) {
+                    return;
+                }
+
+                $this->make_logged($existing['id']);
+
+            } else {
+                $save = array_filter($save);
+
+                $user = User::create($save);
+                if ($user) {
+                    event(new Registered($user));
+                }
+
+                $new_user_id = $user->id;
+
+                $this->after_register($new_user_id);
+                $this->make_logged($new_user_id);
+                EventManager::trigger('mw.user.register', ['id' => $new_user_id]);
+            }
+        } catch (\Laravel\Socialite\Two\InvalidStateException $e) {
+            //do nothing
+        } catch (\GuzzleHttp\Exception\ClientException $e) {
+            //do nothing
+        } catch (\InvalidArgumentException $e) {
+            //do nothing
+        } catch (\Exception $e) {
+            //do nothing
+        }
+
+        if ($user_after_login != false) {
+            if(!str_contains($user_after_login, UrlManager::site())) {
+                $user_after_login = site_url($user_after_login);
+            }
+
+            return UrlManager::redirect($user_after_login);
+        } else {
+            return UrlManager::redirect(site_url());
+        }
+    }
+
+    public function session_set($name, $val)
+    {
+        EventManager::trigger('mw.user.session_set', $name, $val);
+
+        Session::put($name, $val);
+    }
+
+    public function csrf_form($unique_form_name = false)
+    {
+        if ($unique_form_name == false) {
+            $unique_form_name = uniqid();
+        }
+
+        $token = $this->csrf_token($unique_form_name);
+
+        $input = '<input type="hidden" value="' . $token . '" name="_token">';
+
+        return $input;
+    }
+
+    public function session_all()
+    {
+        $value = Session::all();
+
+        return $value;
+    }
+
+    public function session_id()
+    {
+        return Session::getId();
+    }
+
+    public function session_get($name)
+    {
+        $value = Session::get($name);
+
+        return $value;
+    }
+
+    public function session_del($name)
+    {
+        Session::forget($name);
+    }
+
+    public function csrf_token($unique_form_name = false)
+    {
+        return csrf_token();
+    }
+
+    /**
+     * @deprecated Use SocialLogin directly. Kept for backward compatibility.
+     */
+    public function socialite_config($provider = false)
+    {
+        // Configuration is now handled by the social-login package.
+        // The UserSocialiteServiceProvider populates the config on boot.
+    }
+
+private function __check_id_has_ability_to_edit_user($user_id)
+    {
+        if (!$user_id) {
+            return true;
+        }
+        $disable_edit_users = Config::get('microweber.users_disable_edit');
+        if ($disable_edit_users) {
+            $a = array();
+            if (!is_array($disable_edit_users)) {
+                $a[] = $disable_edit_users;
+            } else {
+                $a = $disable_edit_users;
+            }
+            if (is_array($a)) {
+                foreach ($a as $disabled_user_id) {
+                    if ($disabled_user_id and $disabled_user_id == $user_id) {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        // SECURITY (CWE-639): editing/deleting an existing user requires admin or
+        // self (was an unconditional `return true` — a no-op gate).
+        if (is_admin()) {
+            return true;
+        }
+
+        return intval($user_id) === intval(user_id());
+
+    }
+}

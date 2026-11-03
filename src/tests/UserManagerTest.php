@@ -1,0 +1,691 @@
+<?php
+
+namespace MicroweberPackages\User\tests;
+
+use PHPUnit\Framework\Attributes\Test;
+
+use Illuminate\Auth\Events\Login;
+use Illuminate\Auth\Events\Registered;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Notification;
+use MicroweberPackages\App\Http\RequestRoute;
+use Tests\TestCase;
+use MicroweberPackages\Option\Facades\Option;
+use MicroweberPackages\User\Models\User;
+use MicroweberPackages\User\Notifications\NewRegistration;
+use MicroweberPackages\User\Notifications\VerifyEmail;
+use MicroweberPackages\User\Services\UserManager;
+use Modules\Address\Models\Address;
+use Modules\Customer\Models\Customer;
+
+/**
+ * Run test
+ * @author Bobi Slaveykvo Microweber
+ * @command php artisan test --filter UserManager
+ */
+class UserManagerTest extends TestCase
+{
+    use UserTestHelperTrait;
+
+    #[Test]
+
+    public function it_export_my_data(): void {
+        $user = User::where('is_admin', '=', '1')->first();
+        Auth::login($user);
+
+        $response = $this->call('GET', route('api.users.export_my_data'), [
+            'user_id' => $user->id,
+        ]);
+
+        $this->assertEquals($response->getStatusCode(), 200);
+
+        $isDownload = $response->headers->get('content-disposition');
+        $this->assertTrue(str_contains($isDownload, 'filename='));
+
+    }
+
+    #[Test]
+
+    public function it_export_all_users_data(): void {
+        $user = User::where('is_admin', '=', '1')->first();
+        Auth::login($user);
+
+        $response = $this->call('GET', route('admin.users.index') . '?exportResults=true');
+
+        $this->assertEquals($response->getStatusCode(), 200);
+
+        $isDownload = $response->headers->get('content-disposition');
+        $this->assertTrue(str_contains($isDownload, 'filename='));
+
+        $response->assertDownload();
+
+    }
+
+    #[Test]
+
+    public function it_registration(): void {
+        Event::fake();
+        $this->_disableCaptcha();
+        $this->_disableLoginCaptcha();
+        $this->_enableUserRegistration();
+        $this->_disableRegistrationApprovalByAdmin();
+
+        $randomInt = rand(1111, 9999);
+        $password = md5($randomInt);
+
+        // Test simple user registration
+        $newUser = array();
+        $newUser['username'] = 'bobi_' . $randomInt;
+        $newUser['email'] = $newUser['username'] . '@microweber.com';
+        $newUser['password'] = $password;
+        $newUser['password_confirm'] = $password;
+
+        $userManager = new UserManager();
+        $registerStatus = $userManager->register($newUser);
+
+        $this->assertArrayHasKey('success', $registerStatus);
+
+        self::$_username = $newUser['username'];
+        self::$_password = $newUser['password'];
+        self::$_email = $newUser['email'];
+        Event::assertDispatched(Registered::class);
+
+    }
+
+    /*
+        #[Test]
+        public function it_email_wrong_registration(): void {
+            $data['option_value'] = 'y';
+            $data['option_key'] = 'captcha_disabled';
+            $data['option_group'] = 'users';
+            $save = save_option($data);
+
+            $randomInt = rand(1111, 9999);
+            $password = md5($randomInt);
+
+            // Test wrong email user registration
+            $newUser = array();
+            // $newUser['username'] = 'bobi_'.$randomInt;
+            $newUser['email'] = 'wrong-email';
+            $newUser['password'] = $password;
+            $newUser['password_confirm'] = $password;
+
+            $userManager = new UserManager();
+            $registerStatus = $userManager->register($newUser);
+
+            $this->assertArrayHasKey('success', $registerStatus);
+        }
+    */
+
+    #[Test]
+
+    public function it_login(): void {
+        Event::fake();
+        $this->_disableCaptcha();
+        $this->_disableLoginCaptcha();
+        $this->_disableRegistrationApprovalByAdmin();
+        $this->_disableEmailVerify();
+
+        $loginDetails = array();
+        $loginDetails['username'] = self::$_username;
+        $loginDetails['password'] = self::$_password;
+
+        $userManager = new UserManager();
+        $loginStatus = $userManager->login($loginDetails);
+
+        $this->assertArrayHasKey('success', $loginStatus);
+
+
+        Event::assertDispatched(Login::class);
+
+    }
+
+    #[Test]
+
+    public function it_wrong_password_login(): void {
+        $this->_disableCaptcha();
+        $this->_disableLoginCaptcha();
+        $this->_disableRegistrationApprovalByAdmin();
+
+        $loginDetails = array();
+        $loginDetails['username'] = self::$_username;
+        $loginDetails['password'] = 'microweber-best';
+
+        $userManager = new UserManager();
+        $loginStatus = $userManager->login($loginDetails);
+
+        $this->assertArrayHasKey('error', $loginStatus);
+
+    }
+
+    #[Test]
+
+    public function it_wrong_username_login(): void {
+        $this->_disableCaptcha();
+        $this->_disableLoginCaptcha();
+        $this->_disableRegistrationApprovalByAdmin();
+
+        $loginDetails = array();
+        $loginDetails['username'] = 'microweber-some-user';
+        $loginDetails['password'] = 'microweber-some-pass';
+
+        $userManager = new UserManager();
+        $loginStatus = $userManager->login($loginDetails);
+
+        $this->assertArrayHasKey('error', $loginStatus);
+
+    }
+
+    #[Test]
+
+    public function it_wrong_email_login(): void {
+        $this->_disableCaptcha();
+        $this->_disableLoginCaptcha();
+        $this->_disableRegistrationApprovalByAdmin();
+
+        $loginDetails = array();
+        $loginDetails['email'] = 'microweber-some-email';
+        $loginDetails['password'] = 'microweber-some-pass';
+
+        $userManager = new UserManager();
+        $loginStatus = $userManager->login($loginDetails);
+
+        $this->assertArrayHasKey('errors', $loginStatus);
+
+    }
+
+    #[Test]
+
+    public function it_forgot_password(): void {
+        $this->_disableCaptcha();
+        $this->_disableLoginCaptcha();
+        $this->_disableRegistrationApprovalByAdmin();
+
+        $user = 'testuseraddress' . uniqid() . '@example.com';
+        $pass = 'testuseraddress' . uniqid();
+
+        $this->_registerUserWithEmail($user, $pass);
+
+        $userDetails = array();
+        $userDetails['email'] = $user;
+
+        $userManager = new UserManager();
+        $requestStatus = $userManager->send_forgot_password($userDetails);
+
+        $this->assertArrayHasKey('success', $requestStatus);
+        $this->assertTrue($requestStatus['success']);
+
+        $this->assertTrue(str_contains($requestStatus['message'], 'We have emailed your password reset link!'));
+        $this->assertTrue(str_contains($requestStatus['message'], 'reset link'));
+
+        $userDetails['email'] = 'wrong@gmail.com';
+
+        $userManager = new UserManager();
+        $requestStatus = $userManager->send_forgot_password($userDetails);
+
+        $this->assertArrayHasKey('error', $requestStatus);
+        $this->assertTrue($requestStatus['error']);
+        $this->assertTrue(str_contains($requestStatus['message'], 'user with that'));
+
+
+    }
+
+    #[Test]
+
+    public function it_reset_password(): void {
+        $password_reset_hash = '[like]';
+
+        $check = app()->user_manager->get_all('exclude_shorthand=password_reset_hash&single=true&password_reset_hash=[not_null]&password_reset_hash=' . $password_reset_hash . '&username=' . self::$_username);
+
+        $this->assertEquals(false, $check);
+
+    }
+
+
+    #[Test]
+
+
+    public function it_disable_user_registration(): void {
+        $this->_disableUserRegistration();
+        $this->_disableRegistrationApprovalByAdmin();
+
+        $randomInt = rand(1111, 9999);
+        $password = md5($randomInt);
+
+        // Test simple user registration
+        $newUser = array();
+        $newUser['username'] = 'bobi_' . $randomInt;
+        $newUser['email'] = $newUser['username'] . '@microweber.com';
+        $newUser['password'] = $password;
+        $newUser['password_confirm'] = $password;
+
+        $userManager = new UserManager();
+        $registerStatus = $userManager->register($newUser);
+
+        $this->assertArrayHasKey('error', $registerStatus);
+    }
+
+
+    #[Test]
+
+
+    public function it_disable_user_registration_with_disposable_email(): void {
+        $this->_disableUserRegistrationWithDisposableEmail();
+        $this->_disableCaptcha();
+        $this->_disableLoginCaptcha();
+        $this->_enableUserRegistration();
+        $this->_disableRegistrationApprovalByAdmin();
+
+        $randomInt = rand(1111, 9999);
+        $password = md5($randomInt);
+
+        // Test simple user registration
+        $newUser = array();
+        $newUser['username'] = 'anon' . $randomInt;
+        $newUser['email'] = $newUser['username'] . '@mailinator.com';
+        $newUser['password'] = $password;
+        $newUser['password_confirm'] = $password;
+
+        $userManager = new UserManager();
+        $registerStatus = $userManager->register($newUser);
+        $this->assertArrayHasKey('errors', $registerStatus);
+
+    }
+
+    #[Test]
+
+    public function it_user_approval_registration(): void {
+
+        $fakeNotify = Notification::fake();
+
+        $this->_enableUserRegistration();
+        $this->_enableRegistrationApprovalByAdmin();
+        $this->_enableEmailVerify();
+        $this->_enableRegisterWelcomeEmail();
+        $this->_disableCaptcha();
+        $this->_disableLoginCaptcha();
+
+
+        $randomInt = rand(1111, 9999);
+        $password = md5($randomInt);
+
+        // Test simple user registration
+        $newUser = array();
+        $newUser['username'] = 'bobi_' . $randomInt;
+        $newUser['email'] = $newUser['username'] . '@microweber.com';
+        $newUser['password'] = $password;
+        $newUser['password_confirm'] = $password;
+
+        $userManager = new UserManager();
+        $registerStatus = $userManager->register($newUser);
+        $this->assertArrayHasKey('success', $registerStatus);
+
+
+        $loginDetails = array();
+        $loginDetails['username'] = $newUser['username'];
+        $loginDetails['password'] = $newUser['password'];
+
+        $userManager = new UserManager();
+        $loginStatus = $userManager->login($loginDetails);
+
+        $this->assertArrayHasKey('error', $loginStatus);
+
+        $this->assertTrue(str_contains($loginStatus['error'], 'verify'));
+
+
+        $user = User::find($registerStatus['data']['id']);
+
+        $this->assertEquals('0', $user->is_active);
+        $this->assertEquals('0', $user->is_admin);
+        $this->assertEquals('0', $user->is_verified);
+
+        $fakeNotify->assertSentTo([$user], NewRegistration::class);
+        $fakeNotify->assertSentTo([$user], VerifyEmail::class);
+
+
+        //check get user by id
+        $user_array = get_user_by_id($user->id);
+        $this->assertEquals($user_array['id'], $user->id);
+        $this->assertEquals(!isset($user_array['password_reset_hash']), true);
+
+
+        $shotUsername = get_username_short($user->id);
+        $this->assertEquals('bo', $shotUsername);
+
+
+    }
+
+    #[Test]
+
+    public function it_user_registration_with_x_s_s(): void {
+        $this->_enableUserRegistration();
+        $this->_disableRegistrationApprovalByAdmin();
+        $this->_enableRegisterWelcomeEmail();
+        $this->_disableCaptcha();
+        $this->_disableLoginCaptcha();
+
+
+        $unamnexss = '<a href="Boom"><font color=a"onmouseover=alert(document.cookie);"> XSxxxS-Try ME</span></font>' . uniqid();
+        $registerStatus = '';
+        $newUser = array();
+        $newUser['username'] = $unamnexss;
+        $newUser['email'] = uniqid() . '@mail.test';
+        $newUser['password'] = uniqid();
+
+
+        $userManager = new UserManager();
+        $registerStatus = $userManager->register($newUser);
+
+
+        $this->assertNotEmpty($registerStatus['errors']);
+        $this->assertArrayHasKey('errors', $registerStatus);
+        $this->assertArrayHasKey('username', $registerStatus['errors']);
+        $this->assertNotSame($registerStatus['errors']['username'], $newUser['username']);
+
+
+    }
+
+
+    #[Test]
+
+
+    public function it_user_registration_forgot_password_email(): void {
+        $this->_enableUserRegistration();
+        $this->_disableEmailVerify();
+        $this->_disableRegistrationApprovalByAdmin();
+        $this->_enableRegisterWelcomeEmail();
+        $this->_disableCaptcha();
+        $this->_disableLoginCaptcha();
+
+
+        $newUser = array();
+        $newUser['username'] = 'xxx' . uniqid();
+        $newUser['email'] = uniqid() . '@mail.test';
+        $newUser['password'] = uniqid();
+
+
+        $userManager = new UserManager();
+        $registerStatus = $userManager->register($newUser);
+        $this->assertArrayHasKey('success', $registerStatus);
+
+        $user = User::find($registerStatus['data']['id']);
+
+
+        $userManager = new UserManager();
+        $forgotPass = $userManager->send_forgot_password($newUser);
+
+
+        $this->assertArrayHasKey('success', $forgotPass);
+        $this->assertTrue($forgotPass['success']);
+
+
+        $this->assertTrue(str_contains($forgotPass['message'], 'reset link'));
+
+
+        $check = DB::table('password_resets')
+            ->where('email', '=', $newUser['email'])
+            ->first();
+
+        $this->assertEquals($check->email, $newUser['email']);
+
+        $resetPasswordToken = ($check->token);
+        $update_pass_request = [
+            'token' => $resetPasswordToken,
+            'email' => $newUser['email'],
+            'password' => 'pass1234',
+            'password_confirmation' => 'pass1234'
+        ];
+        $updatePasswordWithToken = RequestRoute::postJson(route('api.user.password.update'), $update_pass_request);
+
+        $this->assertArrayHasKey('success', $updatePasswordWithToken);
+
+        $this->assertTrue($updatePasswordWithToken['success']);
+
+        $this->assertTrue(str_contains($updatePasswordWithToken['message'], 'has been reset'));
+
+        logout();
+
+        $loginDetails = array();
+        $loginDetails['email'] = $newUser['email'];
+        $loginDetails['password'] = 'pass1234';
+
+        $userManager = new UserManager();
+        $loginStatus = $userManager->login($loginDetails);
+
+        $this->assertArrayHasKey('success', $loginStatus);
+
+        DB::table('password_resets')->where('email', '=', $check->email)->update([
+            'created_at' => '1997'
+        ]);
+        $update_pass_request = [
+            'token' => $resetPasswordToken,
+            'email' => $newUser['email'],
+            'password' => '1234',
+            'password_confirmation' => '1234'
+        ];
+        $updatePasswordWithToken = RequestRoute::postJson(route('api.user.password.update'), $update_pass_request);
+        $this->assertArrayHasKey('error', $updatePasswordWithToken);
+        $this->assertTrue($updatePasswordWithToken['error']);
+
+        $this->assertTrue(str_contains($updatePasswordWithToken['message'], 'token is invalid'));
+
+    }
+
+    #[Test]
+
+    public function it_user_registration_forgot_password_custom_email_template(): void {
+        \Config::set('mail.transport', 'array');
+        $this->_enableUserRegistration();
+        $this->_disableRegistrationApprovalByAdmin();
+        $this->_enableRegisterWelcomeEmail();
+        $this->_disableCaptcha();
+        $this->_disableLoginCaptcha();
+
+        $newUser = array();
+        $newUser['username'] = 'xxx' . uniqid();
+        $newUser['email'] = uniqid() . '@mail.test';
+        $newUser['password'] = uniqid();
+
+
+        $userManager = new UserManager();
+        $registerStatus = $userManager->register($newUser);
+        $this->assertArrayHasKey('success', $registerStatus);
+        $user = User::find($registerStatus['data']['id']);
+
+
+        $templateId = get_mail_template_by_type('forgot_password');
+        if ($templateId) {
+            delete_mail_template_by_id($templateId);
+
+        }
+        // Save custom mail template and test it
+        $templateId = save_mail_template([
+            'type' => 'forgot_password',
+            'message' => '{{username}}--unit-testingRESET_passwordlink-{{reset_password_link}}'
+        ]);
+
+        Option::setValue('forgot_password_mail_template', $templateId, 'users');
+
+        $userManager = new UserManager();
+        $forgotPass = $userManager->send_forgot_password($newUser);
+        $this->assertArrayHasKey('success', $forgotPass);
+        $this->assertTrue($forgotPass['success']);
+
+        $this->assertTrue(str_contains($forgotPass['message'], 'reset link'));
+
+
+        $findResetPasswordLink = false;
+        $emails = app()->make('mailer')->getSymfonyTransport()->messages();
+        foreach ($emails as $email) {
+
+
+            $emailArray = $this->getEmailDataAsArrayFromObject($email);
+            $body = $emailArray['body'];
+
+            if (str_contains($body, '--unit-testingRESET_passwordlink-') !== false) {
+                if (str_contains($body, '?email') !== false) {
+                    $findResetPasswordLink = true;
+                }
+            }
+        }
+
+        $this->assertTrue($findResetPasswordLink);
+    }
+
+
+    #[Test]
+
+
+    public function it_user_registration_welcome_custom_email_template(): void {
+        \Config::set('mail.transport', 'array');
+        \Config::set('queue.default', 'sync');
+        $this->_enableUserRegistration();
+        $this->_disableRegistrationApprovalByAdmin();
+        $this->_disableEmailVerify();
+        $this->_enableRegisterWelcomeEmail();
+        $this->_disableCaptcha();
+        $this->_disableLoginCaptcha();
+
+        $newUser = array();
+        $newUser['username'] = 'xxx' . uniqid();
+        $newUser['email'] = uniqid() . '@mail.test';
+        $newUser['password'] = uniqid();
+
+        $templateId = get_mail_template_by_type('new_user_registration');
+        if ($templateId) {
+            delete_mail_template_by_id($templateId);
+
+        }
+        // Save custom mail template and test it
+        $templateId = save_mail_template([
+            'type' => 'new_user_registration',
+            'message' => 'Hey {{username}}  , We are so exited you are joining us. {{username}}--unit-testing-welcome-{{email}}'
+        ]);
+        Option::setValue('new_user_registration_mail_template', $templateId, 'users');
+
+
+        $userManager = new UserManager();
+        $registerStatus = $userManager->register($newUser);
+        $this->assertArrayHasKey('success', $registerStatus);
+        $user = User::find($registerStatus['data']['id']);
+
+
+        $findUnitTestingText = false;
+        $checkMailIsFound = false;
+        $findUsername = false;
+        $emails = app()->make('mailer')->getSymfonyTransport()->messages();
+
+        foreach ($emails as $email) {
+
+
+            $emailArray = $this->getEmailDataAsArrayFromObject($email);
+
+            $subject = $emailArray['subject'];
+            $body = $emailArray['body'];
+
+            if ($subject == 'New User Registration') {
+
+
+
+                $checkMailIsFound = true;
+                if (str_contains($body, '--unit-testing-welcome-')) {
+                    $findUnitTestingText = true;
+                }
+
+                if (str_contains($body, $newUser['username'])) {
+                    $findUsername = true;
+                }
+            }
+
+        }
+
+        $this->assertTrue($findUsername);
+        $this->assertTrue($findUnitTestingText);
+        $this->assertTrue($checkMailIsFound);
+    }
+
+
+    #[Test]
+
+
+    public function it_user_address_is_cached_after_save(): void {
+        $this->_disableCaptcha();
+        $this->_disableLoginCaptcha();
+        $this->_disableRegistrationApprovalByAdmin();
+        $this->_disableEmailVerify();
+
+
+        $user = 'testUserAddress' . uniqid();
+        $pass = 'testUserAddress' . uniqid();
+
+        $this->_registerUserWithUsername($user, $pass);
+
+
+        $loginDetails = array();
+        $loginDetails['username'] = $user;
+        $loginDetails['password'] = $pass;
+
+        $userManager = new UserManager();
+        $loginStatus = $userManager->login($loginDetails);
+
+        $this->assertArrayHasKey('success', $loginStatus);
+
+
+        $address = [];
+        // $address['country'] = 'country' . uniqid();
+        $address['city'] = 'city' . uniqid();
+        $address['street'] = 'street' . uniqid();
+
+        $findCustomerByUser = Customer::where('user_id', \Auth::id())->first();
+
+        if (!$findCustomerByUser) {
+            $createNewCustomer = Customer::create([
+                'user_id' => \Auth::id(),
+            ]);
+            //  $createNewCustomer->save();
+            $findCustomerByUser = $createNewCustomer;
+        }
+
+        $findCustomerAddressByCustomerId = Address::where('rel_id', $findCustomerByUser->id)
+            ->where('rel_type', Customer::class)
+            ->first();
+        if (!$findCustomerAddressByCustomerId) {
+            $findCustomerAddressByCustomerId = Address::create([
+                'name' => 'Default',
+                'type' => 'shipping',
+                'rel_type' => Customer::class,
+                'rel_id' => $findCustomerByUser->id,
+
+                //    'country' => $address['country'],
+                'city' => $address['city'],
+                'street' => $address['street'],
+
+            ]);
+            $findCustomerAddressByCustomerId->save();
+        }
+
+        $user_data_checkout = checkout_get_user_info();
+
+
+        $this->assertEquals($address['city'], $findCustomerAddressByCustomerId->city);
+        $this->assertEquals($address['city'], $user_data_checkout['city']);
+
+        $city2 = 'city2' . uniqid();
+        $findCustomerAddressByCustomerId->city = $city2;
+        $findCustomerAddressByCustomerId->save();
+
+        $user = auth()->user();
+
+        $shippingAddress = $user->customer()->first()->shippingAddress()->first();
+        $user_data_checkout = checkout_get_user_info();
+
+        $this->assertEquals($city2, $shippingAddress->city);
+        $this->assertEquals($city2, $user_data_checkout['city']);
+
+
+    }
+
+}
+

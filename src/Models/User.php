@@ -1,0 +1,593 @@
+<?php
+
+namespace MicroweberPackages\User\Models;
+
+
+use DutchCodingCompany\FilamentSocialite\Models\Contracts\FilamentSocialiteUser as FilamentSocialiteUserContract;
+use EloquentFilter\Filterable;
+use Filament\Models\Contracts\FilamentUser;
+use Filament\Models\Contracts\HasName;
+use Filament\Panel;
+use Illuminate\Auth\Passwords\CanResetPassword;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Validator;
+use MicroweberPackages\Fortify\Contracts\TwoFactorAuthenticatable as TwoFactorAuthenticatableContract;
+use MicroweberPackages\Fortify\Traits\HasTwoFactorAuthentication;
+use Laravel\Passport\HasApiTokens;
+use Laravel\Passport\Contracts\OAuthenticatable;
+
+use Laravel\Socialite\Contracts\User as SocialiteUserContract;
+use MicroweberPackages\Searchable\HasSearchableTrait;
+use Modules\Customer\Models\Customer;
+use MicroweberPackages\Database\Casts\ReplaceSiteUrlCast;
+use MicroweberPackages\Database\Casts\StripTagsCast;
+use MicroweberPackages\Database\Casts\StrToLowerTrimCast;
+use MicroweberPackages\Database\Traits\CacheableQueryBuilderTrait;
+use MicroweberPackages\User\Events\UserIsCreating;
+use MicroweberPackages\User\Events\UserIsUpdating;
+use MicroweberPackages\User\Events\UserWasCreated;
+use MicroweberPackages\User\Events\UserWasDeleted;
+use MicroweberPackages\User\Events\UserWasUpdated;
+use MicroweberPackages\User\Models\ModelFilters\UserFilter;
+use MicroweberPackages\User\Notifications\MailResetPasswordNotification;
+use MicroweberPackages\User\Notifications\MustVerifyEmailTrait;
+
+use Spatie\Permission\Traits\HasRoles;
+use Illuminate\Validation\Rule;
+use \Illuminate\Support\Facades\Auth;
+
+
+use carbon\carbon;
+
+/**
+ * @property int $id
+ * @property string|null $username
+ * @property string $password
+ * @property string|null $email
+ * @property int $is_active
+ * @property int $is_admin
+ * @property int $is_verified
+ * @property string|null $first_name
+ * @property string|null $last_name
+ * @property string|null $phone
+ * @property string|null $thumbnail
+ * @property string|null $two_factor_secret
+ * @property string|null $two_factor_recovery_codes
+ * @property \Illuminate\Support\Carbon|null $two_factor_confirmed_at
+ * @property \Illuminate\Support\Carbon|null $created_at
+ * @property \Illuminate\Support\Carbon|null $updated_at
+ */
+class User extends Authenticatable implements MustVerifyEmail, FilamentUser, HasName, FilamentSocialiteUserContract, OAuthenticatable, TwoFactorAuthenticatableContract
+{
+    use HasFactory,
+    Notifiable,
+    HasTwoFactorAuthentication,
+    \Spatie\Permission\Traits\HasRoles,
+    HasApiTokens,
+    Filterable,
+    HasSearchableTrait,
+    MustVerifyEmailTrait,
+    CanResetPassword,
+    CacheableQueryBuilderTrait;
+
+    protected static function newFactory()
+    {
+        return \Database\Factories\UserFactory::new();
+    }
+
+    // Spatie guard pin. The auth provider model is App\Models\User (a thin
+    // subclass of this class), so Spatie's class-based guard resolution fails
+    // when code holds a base-class instance (is_a(parent, child) === false),
+    // throwing GuardDoesNotMatch on assignRole()/hasRole(). Declaring the guard
+    // on the model makes resolution instance-class-independent for this model
+    // and every subclass. All Microweber roles use the 'web' guard.
+    protected $guard_name = 'web';
+
+    /**
+     * Canonical polymorphic identity for users.
+     *
+     * The auth provider instantiates App\Models\User (a thin empty subclass),
+     * while the rest of the CMS — UsersResource, roles, the overwhelming
+     * majority of stored notifications — uses this base class. Those are the
+     * SAME user, but Eloquent keys polymorphic rows (model_has_roles.model_type,
+     * notifications.notifiable_type, tokenable_type, …) by the concrete class,
+     * so a role assigned via the admin resource (base class) was invisible to
+     * the logged-in user (subclass), and vice-versa for notifications.
+     *
+     * Pinning the morph class to this base collapses both classes onto one
+     * polymorphic identity, so roles and notifications line up regardless of
+     * which class instantiated the row. The companion data migration realigns
+     * the pre-existing minority rows that were stored under the subclass.
+     */
+    public function getMorphClass(): string
+    {
+        return self::class;
+    }
+
+    protected $casts = [
+        'username' => StripTagsCast::class,
+        'thumbnail' => ReplaceSiteUrlCast::class,
+        'two_factor_confirmed_at' => 'datetime',
+    ];
+
+    protected $attributes = [
+        'is_active' => 1,
+        'is_admin' => 0,
+        'is_verified' => 0,
+    ];
+
+    protected $searchable = [
+        'email',
+        'username',
+        'first_name',
+        'last_name',
+        'phone',
+    ];
+
+    protected $hidden = [
+        'api_key',
+        'remember_token',
+        'oauth_token',
+        'oauth_token_secret',
+        'password_reset_hash',
+        'two_factor_recovery_codes',
+        'two_factor_secret',
+        'subscr_id',
+        'oauth_uid',
+        'oauth_provider',
+        'last_login_ip',
+        'password',
+    ];
+
+    //protected $hidden = array('password', 'remember_token');
+
+    protected $fillableByUser = array(
+        'username',
+        'password',
+        'email',
+        'first_name',
+        'last_name',
+        'thumbnail',
+        'user_information',
+        'profile_url',
+        'website_url',
+        'phone',
+    );
+
+    protected $fillable = array(
+        'updated_at',
+        'created_at',
+        'expires_on',
+        'last_login',
+        'last_login_ip',
+        'created_by',
+        'edited_by',
+        'username',
+        'password',
+        'email',
+        'is_active',
+        'is_admin',
+        'is_verified',
+        'is_public',
+        'basic_mode',
+        'first_name',
+        'last_name',
+        'thumbnail',
+        'parent_id',
+        'user_information',
+        'subscr_id',
+        'role',
+        'medium',
+        'oauth_uid',
+        'oauth_provider',
+        'pending_email',
+        'pending_email_hash',
+        'pending_email_created_at',
+        'profile_url',
+        'website_url',
+        'phone',
+        'two_factor_secret',
+        'two_factor_recovery_codes',
+        'two_factor_confirmed_at'
+    );
+
+    protected $rules = [
+        //   'email' => 'required'
+    ];
+
+    private $validator;
+
+    public static function boot()
+    {
+        parent::boot();
+
+        self::creating(function ($model) {
+            // Ensure `name` is populated. Microweber identifies users by
+            // username / first_name / last_name and may not set `name`, but some host
+            // schemas keep users.name NOT NULL (e.g. a stock Laravel skeleton's default
+            // create_users_table migration, present when microweber is installed into an
+            // existing app). Default it so user creation — including the installer's admin
+            // user — succeeds on any host schema. Also satisfies Filament's HasName.
+            if (empty($model->name)) {
+                $derived = trim(($model->first_name ?? '') . ' ' . ($model->last_name ?? ''));
+                if ($derived === '') {
+                    $derived = $model->username
+                        ?: (is_string($model->email) ? explode('@', $model->email)[0] : '');
+                }
+                if ($derived !== '') {
+                    $model->name = $derived;
+                }
+            }
+            //$model->is_active = 0;
+            $model->is_verified = 0;
+            event(new UserIsCreating($model->getAttributes()));
+        });
+
+        self::created(function ($model) {
+            event(new UserWasCreated($model));
+        });
+
+        self::updating(function ($model) {
+            event(new UserIsUpdating($model));
+        });
+
+        self::updated(function ($model) {
+            event(new UserWasUpdated($model));
+        });
+
+        self::deleting(function ($model) {
+            event(new UserWasDeleted($model));
+        });
+    }
+
+    public function modelFilter()
+    {
+        return $this->provideFilter(UserFilter::class);
+    }
+
+    public function setPasswordAttribute($pass)
+    {
+        $this->attributes['password'] = (Hash::needsRehash($pass) ? Hash::make($pass) : $pass);
+    }
+
+    /**
+     * Find the user instance for the given username.
+     *
+     * @param string $username
+     * @return \App\User
+     */
+    public function findForPassport($username)
+    {
+        return $this->where('email', $username)->first();
+    }
+
+    public function isAdmin()
+    {
+        return $this->is_admin == 1;
+    }
+
+    public static function login($request)
+    {
+        $remember = $request->remember;
+        $email = $request->email;
+        $password = $request->password;
+
+        return (Auth::attempt(array('email' => $email, 'password' => $password), $remember));
+    }
+
+    /**
+     * Override the mail body for reset password notification mail.
+     */
+    public function sendPasswordResetNotification($token)
+    {
+        $this->notify(new MailResetPasswordNotification($token));
+    }
+
+    public function customer()
+    {
+        return $this->hasOne(Customer::class);
+    }
+
+    public function getAvatarAttribute()
+    {
+        return user_picture($this->id);
+    }
+
+    public function getRoleNameAttribute()
+    {
+        if ($this->isAdmin()) {
+            return 'Admin';
+        }
+
+        return 'User';
+    }
+
+    public function getValidatorMessages()
+    {
+        return $this->validator->messages()->toArray();
+    }
+
+    public function validateAndFill($data)
+    {
+        if (!empty($data['password']) && !empty($data['verify_password'])) {
+            $this->rules['password'] = 'required|min:1|max:50';
+            $this->rules['verify_password'] = 'required|same:password|min:1|max:50';
+        }
+
+        $requireUsername = false;
+        if ((!isset($data['username']) || empty($data['username'])) && (!isset($data['email']) || empty($data['email']))) {
+            $requireUsername = true;
+        }
+
+        if ($requireUsername && isset($data['id']) && $data['id'] > 0) {
+            if (isset($data['username']) && !empty($data['username'])) {
+                $this->rules['username'] = [
+                    'required',
+                    'min:1',
+                    'max:50',
+                    Rule::unique('users', 'username')->ignore($data['id'], 'id')
+                ];
+            }
+        } else if ($requireUsername) {
+            $this->rules['username'] = 'required|min:1|max:50|unique:users';
+        }
+
+
+        if (isset($data['id']) && $data['id'] > 0
+            and isset($data['email']) && !empty($data['email'])
+        ) {
+            $this->rules['email'] = [
+                'min:0',
+                'max:500',
+                'unique:users,email,' . $data['id'] . ',id'
+            ];
+
+        } else if (isset($data['email']) && !empty($data['email'])) {
+            $this->rules['email'] = 'min:0|max:500|unique:users';
+        }
+
+        $this->validator = Validator::make($data, $this->rules);
+        if ($this->validator->fails()) {
+            return false;
+        }
+
+        if (isset($data['thumbnail']) && !empty($data['thumbnail'])) {
+            $passThumbnail = false;
+            $parseThumbnail = parse_url($data['thumbnail']);
+            if (isset($parseThumbnail['host']) && !empty($parseThumbnail['host'])) {
+                if (site_hostname() == $parseThumbnail['host']) {
+                    $localThumbnailFile = url2dir($data['thumbnail']);
+                    if (is_file($localThumbnailFile)) {
+                        $passThumbnail = true;
+                    }
+                }
+            }
+            if (!$passThumbnail) {
+                unset($data['thumbnail']);
+            }
+        }
+
+        $dataToFill = [];
+        if (is_admin()) {
+            $dataToFill = array_intersect_key($data, array_flip($this->fillable));
+        } else {
+            $dataToFill = array_intersect_key($data, array_flip($this->fillableByUser));
+        }
+
+        $this->fill($dataToFill);
+
+        return true;
+    }
+
+    public function avatarUrl()
+    {
+        return user_picture($this->id, 165, 165);
+    }
+
+    public function getFullNameAttribute()
+    {
+        return $this->first_name . ' ' . $this->last_name;
+    }
+
+    public function displayName()
+    {
+        if (!empty($this->first_name) || !empty($this->last_name)) {
+            $name = '';
+            if (!empty($this->first_name)) {
+                $name = $this->first_name;
+            }
+            if (!empty($this->last_name)) {
+                $name .= ' ' . $this->last_name;
+            }
+            return $name;
+        }
+
+        if (!empty($this->username)) {
+            return $this->username;
+        }
+        if (!empty($this->email)) {
+            return $this->email;
+        }
+
+        return "";
+    }
+
+    /**
+     * Get the two factor authentication QR code URL.
+     *
+     * @return string
+     */
+    public function twoFactorQrCodeUrl()
+    {
+        return app(TwoFactorAuthenticationProvider::class)->qrCodeUrl(
+            site_hostname(),
+            $this->{Fortify::username()},
+            decrypt($this->two_factor_secret)
+        );
+    }
+
+
+    public function getFilamentName(): string
+    {
+        return $this->email ?? (string) $this->id;
+    }
+
+    public function canAccessPanel(Panel $panel): bool
+    {
+        $panelId = $panel->getId();
+
+        if ($panelId === 'admin') {
+            return (bool) $this->is_admin;
+        }
+
+        if ($panelId === 'profile') {
+            return (bool) $this->id;
+        }
+
+        // The Vendors module's dedicated panel: admins always, plus any user
+        // holding the `vendor` role. Checked by role name so this stays
+        // decoupled from the Vendors module.
+        if ($panelId === 'vendor') {
+            if ($this->is_admin) {
+                return true;
+            }
+            try {
+                return (bool) $this->id
+                    && method_exists($this, 'roles')
+                    && $this->roles()->where('name', 'vendor')->exists();
+            } catch (\Throwable $e) {
+                return false;
+            }
+        }
+
+        return false;
+    }
+
+
+    /**
+     * The refresh token for the user.
+     *
+     * @var string
+     */
+    public $refreshToken;
+
+    /**
+     * The number of seconds the access token is valid for.
+     *
+     * @var int
+     */
+    public $expiresIn;
+
+    /**
+     * The token type.
+     *
+     * @var string
+     */
+    public $tokenType;
+
+    /**
+     * The raw response from the provider.
+     *
+     * @var array
+     */
+    public $raw = [];
+
+    /**
+     * The token.
+     *
+     * @var string
+     */
+
+    public $token;
+
+    public function setToken($token)
+    {
+        $this->token = $token;
+
+        return $this;
+    }
+
+
+    /**
+     * Set the refresh token required to obtain a new access token.
+     *
+     * @param string $refreshToken
+     * @return $this
+     */
+    public function setRefreshToken($refreshToken)
+    {
+        $this->refreshToken = $refreshToken;
+
+        return $this;
+    }
+
+    /**
+     * Set the number of seconds the access token is valid for.
+     *
+     * @param int $expiresIn
+     * @return $this
+     */
+    public function setExpiresIn($expiresIn)
+    {
+        $this->expiresIn = $expiresIn;
+
+        return $this;
+    }
+
+    public function getUser(): \Illuminate\Contracts\Auth\Authenticatable
+    {
+        return User::find($this->id);
+    }
+
+    public static function findForProvider(string $provider, SocialiteUserContract $oauthUser): ?self
+    {
+        $oauthData = UserOauthData::where('provider', $provider)
+            ->where('data_id', $oauthUser->getId())
+            ->first();
+
+        if ($oauthUser->getEmail()) {
+            $user = User::where('email', $oauthUser->getEmail())->first();
+            if (!$user) {
+                $user = User::where('username', $oauthUser->getEmail())->first();
+            }
+            if (!$user) {
+                //create user if not exists
+                $user = new User();
+                $user->email = $oauthUser->getEmail();
+                $user->name = $oauthUser->getName();
+                $user->save();
+                return $user;
+            } else {
+                return $user;
+            }
+        }
+
+
+        return $oauthData ? User::find($oauthData->user_id) : null;
+    }
+
+    public static function createForProvider(string $provider, SocialiteUserContract $oauthUser, Authenticatable|\Illuminate\Contracts\Auth\Authenticatable $user): FilamentSocialiteUserContract
+    {
+
+        $oauthData = new UserOauthData([
+            'user_id' => $user->id,
+            'provider' => $provider,
+            'data_token' => $oauthUser->token ?? null,
+            'data_raw' => json_encode($oauthUser->getRaw()),
+            'data_name' => $oauthUser->getName(),
+            'data_id' => $oauthUser->getId(),
+            'data_email' => $oauthUser->getEmail(),
+            'data_avatar' => $oauthUser->getAvatar()
+        ]);
+
+        $oauthData->save();
+
+
+        return User::find($user->id);
+    }
+}
