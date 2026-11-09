@@ -73,12 +73,6 @@ parameters:
 			path: src/Filament/Resources/UsersResource.php
 
 		-
-			message: '#^Access to property \$data on an unknown class Modules\\Backup\\Formats\\CsvBackup\.$#'
-			identifier: class.notFound
-			count: 2
-			path: src/Http/Controllers/Admin/UserController.php
-
-		-
 			message: '#^Call to an undefined static method MicroweberPackages\\User\\Models\\User\:\:filter\(\)\.$#'
 			identifier: staticMethod.notFound
 			count: 1
@@ -88,18 +82,6 @@ parameters:
 			message: '#^Call to an undefined static method MicroweberPackages\\User\\Models\\User\:\:where\(\)\.$#'
 			identifier: staticMethod.notFound
 			count: 2
-			path: src/Http/Controllers/Admin/UserController.php
-
-		-
-			message: '#^Call to method start\(\) on an unknown class Modules\\Backup\\Formats\\CsvBackup\.$#'
-			identifier: class.notFound
-			count: 1
-			path: src/Http/Controllers/Admin/UserController.php
-
-		-
-			message: '#^Instantiated class Modules\\Backup\\Formats\\CsvBackup not found\.$#'
-			identifier: class.notFound
-			count: 1
 			path: src/Http/Controllers/Admin/UserController.php
 
 		-
@@ -175,18 +157,6 @@ parameters:
 			path: src/Http/Controllers/Api/UsersApiController.php
 
 		-
-			message: '#^Access to an undefined property Illuminate\\Foundation\\Application\:\:\$user_manager\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Http/Controllers/UserEmailChangeController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Foundation\\Application\:\:\$parser\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Http/Controllers/UserForgotPasswordController.php
-
-		-
 			message: '#^Access to an undefined property Illuminate\\Http\\Request\:\:\$email\.$#'
 			identifier: property.notFound
 			count: 3
@@ -229,33 +199,9 @@ parameters:
 			path: src/Http/Controllers/UserForgotPasswordController.php
 
 		-
-			message: '#^Function get_option not found\.$#'
-			identifier: function.notFound
-			count: 1
-			path: src/Http/Controllers/UserForgotPasswordController.php
-
-		-
 			message: '#^Access to an undefined property Illuminate\\Contracts\\Auth\\Authenticatable\:\:\$is_admin\.$#'
 			identifier: property.notFound
 			count: 3
-			path: src/Http/Controllers/UserLoginController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Foundation\\Application\:\:\$lang_helper\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Http/Controllers/UserLoginController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Foundation\\Application\:\:\$parser\.$#'
-			identifier: property.notFound
-			count: 2
-			path: src/Http/Controllers/UserLoginController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Foundation\\Application\:\:\$user_manager\.$#'
-			identifier: property.notFound
-			count: 2
 			path: src/Http/Controllers/UserLoginController.php
 
 		-
@@ -307,18 +253,6 @@ parameters:
 			path: src/Http/Controllers/UserLoginController.php
 
 		-
-			message: '#^Call to method isSameSite\(\) on an unknown class MicroweberPackages\\App\\Http\\Middleware\\SameSiteRefererMiddleware\.$#'
-			identifier: class.notFound
-			count: 1
-			path: src/Http/Controllers/UserLogoutController.php
-
-		-
-			message: '#^Class MicroweberPackages\\App\\Http\\Middleware\\SameSiteRefererMiddleware not found\.$#'
-			identifier: class.notFound
-			count: 1
-			path: src/Http/Controllers/UserLogoutController.php
-
-		-
 			message: '#^Function logout invoked with 1 parameter, 0 required\.$#'
 			identifier: arguments.count
 			count: 1
@@ -331,62 +265,26 @@ parameters:
 			path: src/Http/Controllers/UserLogoutController.php
 
 		-
-			message: '#^Access to property \$customer_id on an unknown class Modules\\Address\\Models\\Address\.$#'
-			identifier: class.notFound
-			count: 2
-			path: src/Http/Controllers/UserProfileController.php
-
-		-
-			message: '#^Access to property \$type on an unknown class Modules\\Address\\Models\\Address\.$#'
-			identifier: class.notFound
-			count: 2
-			path: src/Http/Controllers/UserProfileController.php
-
-		-
-			message: '#^Access to property \$user_id on an unknown class Modules\\Customer\\Models\\Customer\.$#'
-			identifier: class.notFound
-			count: 2
-			path: src/Http/Controllers/UserProfileController.php
-
-		-
-			message: '#^Call to static method where\(\) on an unknown class Modules\\Address\\Models\\Address\.$#'
-			identifier: class.notFound
-			count: 1
-			path: src/Http/Controllers/UserProfileController.php
-
-		-
-			message: '#^Call to static method where\(\) on an unknown class Modules\\Customer\\Models\\Customer\.$#'
-			identifier: class.notFound
-			count: 1
-			path: src/Http/Controllers/UserProfileController.php
-
-		-
-			message: '#^Instantiated class Modules\\Address\\Models\\Address not found\.$#'
-			identifier: class.notFound
-			count: 1
-			path: src/Http/Controllers/UserProfileController.php
-
-		-
-			message: '#^Instantiated class Modules\\Customer\\Models\\Customer not found\.$#'
-			identifier: class.notFound
-			count: 1
-			path: src/Http/Controllers/UserProfileController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Foundation\\Application\:\:\$user_manager\.$#'
+			message: '#^Access to an undefined property Modules\\Address\\Models\\Address\:\:\$customer_id\.$#'
 			identifier: property.notFound
 			count: 1
-			path: src/Http/Controllers/UserRegisterController.php
+			path: src/Http/Controllers/UserProfileController.php
+
+		-
+			message: '#^Call to an undefined static method Modules\\Address\\Models\\Address\:\:where\(\)\.$#'
+			identifier: staticMethod.notFound
+			count: 1
+			path: src/Http/Controllers/UserProfileController.php
+
+		-
+			message: '#^Call to an undefined static method Modules\\Customer\\Models\\Customer\:\:where\(\)\.$#'
+			identifier: staticMethod.notFound
+			count: 1
+			path: src/Http/Controllers/UserProfileController.php
 
 		-
 			message: '#^Call to an undefined static method MicroweberPackages\\User\\Models\\User\:\:create\(\)\.$#'
 			identifier: staticMethod.notFound
-			count: 1
-			path: src/Http/Controllers/UserRegisterController.php
-
-		-
-			message: '#^Function get_option not found\.$#'
-			identifier: function.notFound
 			count: 1
 			path: src/Http/Controllers/UserRegisterController.php
 
@@ -451,12 +349,6 @@ parameters:
 			path: src/Http/Livewire/Admin/DeleteUserForm.php
 
 		-
-			message: '#^Access to an undefined property Illuminate\\Foundation\\Application\:\:\$user_manager\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/Http/Livewire/Admin/LoginAsUserForm.php
-
-		-
 			message: '#^Method MicroweberPackages\\User\\Http\\Livewire\\Admin\\LoginAsUserForm\:\:loginAsUser\(\) with return type void returns Illuminate\\Http\\RedirectResponse but should not return anything\.$#'
 			identifier: return.void
 			count: 1
@@ -483,24 +375,6 @@ parameters:
 		-
 			message: '#^Call to an undefined method Illuminate\\Contracts\\Auth\\StatefulGuard\:\:logoutOtherDevices\(\)\.$#'
 			identifier: method.notFound
-			count: 1
-			path: src/Http/Livewire/Admin/LogoutOtherBrowserSessionsForm.php
-
-		-
-			message: '#^Call to method setUserAgent\(\) on an unknown class Jenssegers\\Agent\\Agent\.$#'
-			identifier: class.notFound
-			count: 1
-			path: src/Http/Livewire/Admin/LogoutOtherBrowserSessionsForm.php
-
-		-
-			message: '#^Instantiated class Jenssegers\\Agent\\Agent not found\.$#'
-			identifier: class.notFound
-			count: 1
-			path: src/Http/Livewire/Admin/LogoutOtherBrowserSessionsForm.php
-
-		-
-			message: '#^Method MicroweberPackages\\User\\Http\\Livewire\\Admin\\LogoutOtherBrowserSessionsForm\:\:createAgent\(\) has invalid return type Jenssegers\\Agent\\Agent\.$#'
-			identifier: class.notFound
 			count: 1
 			path: src/Http/Livewire/Admin/LogoutOtherBrowserSessionsForm.php
 
@@ -619,8 +493,8 @@ parameters:
 			path: src/Http/Livewire/Admin/UpdateStatusAndRoleForm.php
 
 		-
-			message: '#^Call to static method where\(\) on an unknown class MicroweberPackages\\App\\LoginAttempt\.$#'
-			identifier: class.notFound
+			message: '#^Call to an undefined static method MicroweberPackages\\App\\LoginAttempt\:\:where\(\)\.$#'
+			identifier: staticMethod.notFound
 			count: 1
 			path: src/Http/Livewire/Admin/UserLoginAttemptsModal.php
 
@@ -661,24 +535,6 @@ parameters:
 			path: src/Http/Livewire/LogoutOtherBrowserSessionsForm.php
 
 		-
-			message: '#^Call to method setUserAgent\(\) on an unknown class Jenssegers\\Agent\\Agent\.$#'
-			identifier: class.notFound
-			count: 1
-			path: src/Http/Livewire/LogoutOtherBrowserSessionsForm.php
-
-		-
-			message: '#^Instantiated class Jenssegers\\Agent\\Agent not found\.$#'
-			identifier: class.notFound
-			count: 1
-			path: src/Http/Livewire/LogoutOtherBrowserSessionsForm.php
-
-		-
-			message: '#^Method MicroweberPackages\\User\\Http\\Livewire\\LogoutOtherBrowserSessionsForm\:\:createAgent\(\) has invalid return type Jenssegers\\Agent\\Agent\.$#'
-			identifier: class.notFound
-			count: 1
-			path: src/Http/Livewire/LogoutOtherBrowserSessionsForm.php
-
-		-
 			message: '#^Method MicroweberPackages\\User\\Http\\Livewire\\LogoutOtherBrowserSessionsForm\:\:render\(\) should return Illuminate\\View\\View but returns Illuminate\\Contracts\\View\\View\.$#'
 			identifier: return.type
 			count: 1
@@ -707,24 +563,6 @@ parameters:
 			identifier: return.void
 			count: 1
 			path: src/Http/Requests/EmailVerificationRequest.php
-
-		-
-			message: '#^Function get_option not found\.$#'
-			identifier: function.notFound
-			count: 1
-			path: src/Http/Requests/LoginRequest.php
-
-		-
-			message: '#^Function is_module not found\.$#'
-			identifier: function.notFound
-			count: 1
-			path: src/Http/Requests/LoginRequest.php
-
-		-
-			message: '#^Function get_option not found\.$#'
-			identifier: function.notFound
-			count: 4
-			path: src/Http/Requests/RegisterRequest.php
 
 		-
 			message: '#^Access to an undefined property MicroweberPackages\\User\\Http\\Resources\\UserApiResource\:\:\$is_public\.$#'
@@ -763,98 +601,74 @@ parameters:
 			path: src/Http/Resources/UserResource.php
 
 		-
-			message: '#^Access to property \$email on an unknown class MicroweberPackages\\App\\LoginAttempt\.$#'
-			identifier: class.notFound
-			count: 2
-			path: src/Listeners/RecordAuthenticatedLoginListener.php
-
-		-
-			message: '#^Access to property \$ip on an unknown class MicroweberPackages\\App\\LoginAttempt\.$#'
-			identifier: class.notFound
-			count: 2
-			path: src/Listeners/RecordAuthenticatedLoginListener.php
-
-		-
-			message: '#^Access to property \$success on an unknown class MicroweberPackages\\App\\LoginAttempt\.$#'
-			identifier: class.notFound
-			count: 2
-			path: src/Listeners/RecordAuthenticatedLoginListener.php
-
-		-
-			message: '#^Access to property \$time on an unknown class MicroweberPackages\\App\\LoginAttempt\.$#'
-			identifier: class.notFound
-			count: 2
-			path: src/Listeners/RecordAuthenticatedLoginListener.php
-
-		-
-			message: '#^Access to property \$user_id on an unknown class MicroweberPackages\\App\\LoginAttempt\.$#'
-			identifier: class.notFound
-			count: 2
-			path: src/Listeners/RecordAuthenticatedLoginListener.php
-
-		-
-			message: '#^Access to property \$username on an unknown class MicroweberPackages\\App\\LoginAttempt\.$#'
-			identifier: class.notFound
-			count: 2
-			path: src/Listeners/RecordAuthenticatedLoginListener.php
-
-		-
-			message: '#^Call to method save\(\) on an unknown class MicroweberPackages\\App\\LoginAttempt\.$#'
-			identifier: class.notFound
+			message: '#^Access to an undefined property MicroweberPackages\\App\\LoginAttempt\:\:\$email\.$#'
+			identifier: property.notFound
 			count: 1
 			path: src/Listeners/RecordAuthenticatedLoginListener.php
 
 		-
-			message: '#^Instantiated class MicroweberPackages\\App\\LoginAttempt not found\.$#'
-			identifier: class.notFound
+			message: '#^Access to an undefined property MicroweberPackages\\App\\LoginAttempt\:\:\$ip\.$#'
+			identifier: property.notFound
 			count: 1
 			path: src/Listeners/RecordAuthenticatedLoginListener.php
 
 		-
-			message: '#^Access to property \$email on an unknown class MicroweberPackages\\App\\LoginAttempt\.$#'
-			identifier: class.notFound
-			count: 2
-			path: src/Listeners/RecordFailedLoginAttemptListener.php
+			message: '#^Access to an undefined property MicroweberPackages\\App\\LoginAttempt\:\:\$success\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Listeners/RecordAuthenticatedLoginListener.php
 
 		-
-			message: '#^Access to property \$ip on an unknown class MicroweberPackages\\App\\LoginAttempt\.$#'
-			identifier: class.notFound
-			count: 2
-			path: src/Listeners/RecordFailedLoginAttemptListener.php
+			message: '#^Access to an undefined property MicroweberPackages\\App\\LoginAttempt\:\:\$time\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Listeners/RecordAuthenticatedLoginListener.php
 
 		-
-			message: '#^Access to property \$success on an unknown class MicroweberPackages\\App\\LoginAttempt\.$#'
-			identifier: class.notFound
-			count: 2
-			path: src/Listeners/RecordFailedLoginAttemptListener.php
+			message: '#^Access to an undefined property MicroweberPackages\\App\\LoginAttempt\:\:\$user_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Listeners/RecordAuthenticatedLoginListener.php
 
 		-
-			message: '#^Access to property \$time on an unknown class MicroweberPackages\\App\\LoginAttempt\.$#'
-			identifier: class.notFound
-			count: 2
-			path: src/Listeners/RecordFailedLoginAttemptListener.php
+			message: '#^Access to an undefined property MicroweberPackages\\App\\LoginAttempt\:\:\$username\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Listeners/RecordAuthenticatedLoginListener.php
 
 		-
-			message: '#^Access to property \$user_id on an unknown class MicroweberPackages\\App\\LoginAttempt\.$#'
-			identifier: class.notFound
-			count: 2
-			path: src/Listeners/RecordFailedLoginAttemptListener.php
-
-		-
-			message: '#^Access to property \$username on an unknown class MicroweberPackages\\App\\LoginAttempt\.$#'
-			identifier: class.notFound
-			count: 2
-			path: src/Listeners/RecordFailedLoginAttemptListener.php
-
-		-
-			message: '#^Call to method save\(\) on an unknown class MicroweberPackages\\App\\LoginAttempt\.$#'
-			identifier: class.notFound
+			message: '#^Access to an undefined property MicroweberPackages\\App\\LoginAttempt\:\:\$email\.$#'
+			identifier: property.notFound
 			count: 1
 			path: src/Listeners/RecordFailedLoginAttemptListener.php
 
 		-
-			message: '#^Instantiated class MicroweberPackages\\App\\LoginAttempt not found\.$#'
-			identifier: class.notFound
+			message: '#^Access to an undefined property MicroweberPackages\\App\\LoginAttempt\:\:\$ip\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Listeners/RecordFailedLoginAttemptListener.php
+
+		-
+			message: '#^Access to an undefined property MicroweberPackages\\App\\LoginAttempt\:\:\$success\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Listeners/RecordFailedLoginAttemptListener.php
+
+		-
+			message: '#^Access to an undefined property MicroweberPackages\\App\\LoginAttempt\:\:\$time\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Listeners/RecordFailedLoginAttemptListener.php
+
+		-
+			message: '#^Access to an undefined property MicroweberPackages\\App\\LoginAttempt\:\:\$user_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Listeners/RecordFailedLoginAttemptListener.php
+
+		-
+			message: '#^Access to an undefined property MicroweberPackages\\App\\LoginAttempt\:\:\$username\.$#'
+			identifier: property.notFound
 			count: 1
 			path: src/Listeners/RecordFailedLoginAttemptListener.php
 
@@ -907,18 +721,6 @@ parameters:
 			path: src/Models/User.php
 
 		-
-			message: '#^Call to method qrCodeUrl\(\) on an unknown class MicroweberPackages\\User\\Models\\TwoFactorAuthenticationProvider\.$#'
-			identifier: class.notFound
-			count: 1
-			path: src/Models/User.php
-
-		-
-			message: '#^Call to static method new\(\) on an unknown class Database\\Factories\\UserFactory\.$#'
-			identifier: class.notFound
-			count: 1
-			path: src/Models/User.php
-
-		-
 			message: '#^Call to static method username\(\) on an unknown class MicroweberPackages\\User\\Models\\Fortify\.$#'
 			identifier: class.notFound
 			count: 1
@@ -932,12 +734,6 @@ parameters:
 
 		-
 			message: '#^Class MicroweberPackages\\User\\Models\\TwoFactorAuthenticationProvider not found\.$#'
-			identifier: class.notFound
-			count: 1
-			path: src/Models/User.php
-
-		-
-			message: '#^Class Modules\\Customer\\Models\\Customer not found\.$#'
 			identifier: class.notFound
 			count: 1
 			path: src/Models/User.php
@@ -961,20 +757,14 @@ parameters:
 			path: src/Notifications/MailResetPasswordNotification.php
 
 		-
-			message: '#^Function get_mail_template_by_id not found\.$#'
-			identifier: function.notFound
+			message: '#^Function get_mail_template_by_id invoked with 2 parameters, 1 required\.$#'
+			identifier: arguments.count
 			count: 1
 			path: src/Notifications/MailResetPasswordNotification.php
 
 		-
-			message: '#^Function get_mail_template_by_type not found\.$#'
-			identifier: function.notFound
-			count: 1
-			path: src/Notifications/MailResetPasswordNotification.php
-
-		-
-			message: '#^Function get_mail_template_by_id not found\.$#'
-			identifier: function.notFound
+			message: '#^Function get_mail_template_by_id invoked with 2 parameters, 1 required\.$#'
+			identifier: arguments.count
 			count: 1
 			path: src/Notifications/NewRegistration.php
 
@@ -997,30 +787,6 @@ parameters:
 			path: src/Providers/UserServiceProvider.php
 
 		-
-			message: '#^Function get_option not found\.$#'
-			identifier: function.notFound
-			count: 1
-			path: src/Providers/UserServiceProvider.php
-
-		-
-			message: '#^Function api_url not found\.$#'
-			identifier: function.notFound
-			count: 1
-			path: src/Providers/UserSocialiteServiceProvider.php
-
-		-
-			message: '#^Function get_option not found\.$#'
-			identifier: function.notFound
-			count: 4
-			path: src/Providers/UserSocialiteServiceProvider.php
-
-		-
-			message: '#^Function mw_is_installed not found\.$#'
-			identifier: function.notFound
-			count: 1
-			path: src/Providers/UserSocialiteServiceProvider.php
-
-		-
 			message: '#^Variable \$count_only in isset\(\) is never defined\.$#'
 			identifier: isset.variable
 			count: 1
@@ -1033,21 +799,27 @@ parameters:
 			path: src/Services/Concerns/QueriesUsers.php
 
 		-
-			message: '#^Access to property \$user_manager on an unknown class MicroweberPackages\\App\\LaravelApplication\.$#'
+			message: '#^Call to static method create\(\) on an unknown class Microweber\\App\\User\.$#'
 			identifier: class.notFound
+			count: 1
+			path: src/Services/Registrar.php
+
+		-
+			message: '#^Call to static method make\(\) on an unknown class Validator\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Services/Registrar.php
+
+		-
+			message: '#^Method MicroweberPackages\\User\\Services\\Registrar\:\:create\(\) has invalid return type Microweber\\App\\User\.$#'
+			identifier: class.notFound
+			count: 1
+			path: src/Services/Registrar.php
+
+		-
+			message: '#^Access to an undefined property MicroweberPackages\\App\\LaravelApplication\:\:\$user_manager\.$#'
+			identifier: property.notFound
 			count: 2
-			path: src/Services/TosManager.php
-
-		-
-			message: '#^Function mw not found\.$#'
-			identifier: function.notFound
-			count: 1
-			path: src/Services/TosManager.php
-
-		-
-			message: '#^Property MicroweberPackages\\User\\Services\\TosManager\:\:\$app has unknown class MicroweberPackages\\App\\LaravelApplication as its type\.$#'
-			identifier: class.notFound
-			count: 1
 			path: src/Services/TosManager.php
 
 		-
@@ -1063,13 +835,79 @@ parameters:
 			path: src/Services/UserManager.php
 
 		-
-			message: '#^Access to an undefined property Illuminate\\Foundation\\Application\:\:\$log_manager\.$#'
+			message: '#^Access to an undefined property MicroweberPackages\\App\\LaravelApplication\:\:\$attributes_manager\.$#'
 			identifier: property.notFound
-			count: 9
+			count: 1
 			path: src/Services/UserManager.php
 
 		-
-			message: '#^Access to an undefined property Illuminate\\Foundation\\Application\:\:\$user_manager\.$#'
+			message: '#^Access to an undefined property MicroweberPackages\\App\\LaravelApplication\:\:\$cache_manager\.$#'
+			identifier: property.notFound
+			count: 3
+			path: src/Services/UserManager.php
+
+		-
+			message: '#^Access to an undefined property MicroweberPackages\\App\\LaravelApplication\:\:\$captcha_manager\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Services/UserManager.php
+
+		-
+			message: '#^Access to an undefined property MicroweberPackages\\App\\LaravelApplication\:\:\$content_manager\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Services/UserManager.php
+
+		-
+			message: '#^Access to an undefined property MicroweberPackages\\App\\LaravelApplication\:\:\$option_manager\.$#'
+			identifier: property.notFound
+			count: 7
+			path: src/Services/UserManager.php
+
+		-
+			message: '#^Access to an undefined property MicroweberPackages\\App\\LaravelApplication\:\:\$template_manager\.$#'
+			identifier: property.notFound
+			count: 5
+			path: src/Services/UserManager.php
+
+		-
+			message: '#^Access to an undefined property MicroweberPackages\\App\\LaravelApplication\:\:\$url\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Services/UserManager.php
+
+		-
+			message: '#^Access to an undefined property MicroweberPackages\\App\\LoginAttempt\:\:\$email\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Services/UserManager.php
+
+		-
+			message: '#^Access to an undefined property MicroweberPackages\\App\\LoginAttempt\:\:\$ip\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Services/UserManager.php
+
+		-
+			message: '#^Access to an undefined property MicroweberPackages\\App\\LoginAttempt\:\:\$success\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Services/UserManager.php
+
+		-
+			message: '#^Access to an undefined property MicroweberPackages\\App\\LoginAttempt\:\:\$time\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Services/UserManager.php
+
+		-
+			message: '#^Access to an undefined property MicroweberPackages\\App\\LoginAttempt\:\:\$user_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Services/UserManager.php
+
+		-
+			message: '#^Access to an undefined property MicroweberPackages\\App\\LoginAttempt\:\:\$username\.$#'
 			identifier: property.notFound
 			count: 1
 			path: src/Services/UserManager.php
@@ -1089,84 +927,6 @@ parameters:
 		-
 			message: '#^Access to an undefined property MicroweberPackages\\User\\Models\\User\:\:\$pending_email_hash\.$#'
 			identifier: property.notFound
-			count: 2
-			path: src/Services/UserManager.php
-
-		-
-			message: '#^Access to property \$attributes_manager on an unknown class MicroweberPackages\\App\\LaravelApplication\.$#'
-			identifier: class.notFound
-			count: 1
-			path: src/Services/UserManager.php
-
-		-
-			message: '#^Access to property \$cache_manager on an unknown class MicroweberPackages\\App\\LaravelApplication\.$#'
-			identifier: class.notFound
-			count: 3
-			path: src/Services/UserManager.php
-
-		-
-			message: '#^Access to property \$captcha_manager on an unknown class MicroweberPackages\\App\\LaravelApplication\.$#'
-			identifier: class.notFound
-			count: 1
-			path: src/Services/UserManager.php
-
-		-
-			message: '#^Access to property \$content_manager on an unknown class MicroweberPackages\\App\\LaravelApplication\.$#'
-			identifier: class.notFound
-			count: 1
-			path: src/Services/UserManager.php
-
-		-
-			message: '#^Access to property \$email on an unknown class MicroweberPackages\\App\\LoginAttempt\.$#'
-			identifier: class.notFound
-			count: 2
-			path: src/Services/UserManager.php
-
-		-
-			message: '#^Access to property \$ip on an unknown class MicroweberPackages\\App\\LoginAttempt\.$#'
-			identifier: class.notFound
-			count: 2
-			path: src/Services/UserManager.php
-
-		-
-			message: '#^Access to property \$option_manager on an unknown class MicroweberPackages\\App\\LaravelApplication\.$#'
-			identifier: class.notFound
-			count: 7
-			path: src/Services/UserManager.php
-
-		-
-			message: '#^Access to property \$success on an unknown class MicroweberPackages\\App\\LoginAttempt\.$#'
-			identifier: class.notFound
-			count: 2
-			path: src/Services/UserManager.php
-
-		-
-			message: '#^Access to property \$template_manager on an unknown class MicroweberPackages\\App\\LaravelApplication\.$#'
-			identifier: class.notFound
-			count: 5
-			path: src/Services/UserManager.php
-
-		-
-			message: '#^Access to property \$time on an unknown class MicroweberPackages\\App\\LoginAttempt\.$#'
-			identifier: class.notFound
-			count: 2
-			path: src/Services/UserManager.php
-
-		-
-			message: '#^Access to property \$url on an unknown class MicroweberPackages\\App\\LaravelApplication\.$#'
-			identifier: class.notFound
-			count: 1
-			path: src/Services/UserManager.php
-
-		-
-			message: '#^Access to property \$user_id on an unknown class MicroweberPackages\\App\\LoginAttempt\.$#'
-			identifier: class.notFound
-			count: 2
-			path: src/Services/UserManager.php
-
-		-
-			message: '#^Access to property \$username on an unknown class MicroweberPackages\\App\\LoginAttempt\.$#'
-			identifier: class.notFound
 			count: 2
 			path: src/Services/UserManager.php
 
@@ -1201,14 +961,26 @@ parameters:
 			path: src/Services/UserManager.php
 
 		-
-			message: '#^Call to method save\(\) on an unknown class MicroweberPackages\\App\\LoginAttempt\.$#'
-			identifier: class.notFound
+			message: '#^Call to an undefined static method Modules\\Address\\Models\\Address\:\:updateOrCreate\(\)\.$#'
+			identifier: staticMethod.notFound
 			count: 1
 			path: src/Services/UserManager.php
 
 		-
-			message: '#^Call to static method firstOrCreate\(\) on an unknown class Modules\\Customer\\Models\\Customer\.$#'
-			identifier: class.notFound
+			message: '#^Call to an undefined static method Modules\\Address\\Models\\Address\:\:where\(\)\.$#'
+			identifier: staticMethod.notFound
+			count: 1
+			path: src/Services/UserManager.php
+
+		-
+			message: '#^Call to an undefined static method Modules\\Customer\\Models\\Customer\:\:firstOrCreate\(\)\.$#'
+			identifier: staticMethod.notFound
+			count: 1
+			path: src/Services/UserManager.php
+
+		-
+			message: '#^Call to an undefined static method Modules\\Customer\\Models\\Customer\:\:where\(\)\.$#'
+			identifier: staticMethod.notFound
 			count: 1
 			path: src/Services/UserManager.php
 
@@ -1216,30 +988,6 @@ parameters:
 			message: '#^Call to static method make\(\) on an unknown class Hash\.$#'
 			identifier: class.notFound
 			count: 1
-			path: src/Services/UserManager.php
-
-		-
-			message: '#^Call to static method updateOrCreate\(\) on an unknown class Modules\\Address\\Models\\Address\.$#'
-			identifier: class.notFound
-			count: 1
-			path: src/Services/UserManager.php
-
-		-
-			message: '#^Call to static method where\(\) on an unknown class Modules\\Address\\Models\\Address\.$#'
-			identifier: class.notFound
-			count: 1
-			path: src/Services/UserManager.php
-
-		-
-			message: '#^Call to static method where\(\) on an unknown class Modules\\Customer\\Models\\Customer\.$#'
-			identifier: class.notFound
-			count: 1
-			path: src/Services/UserManager.php
-
-		-
-			message: '#^Class Modules\\Customer\\Models\\Customer not found\.$#'
-			identifier: class.notFound
-			count: 2
 			path: src/Services/UserManager.php
 
 		-
@@ -1255,21 +1003,9 @@ parameters:
 			path: src/Services/UserManager.php
 
 		-
-			message: '#^Function api_url not found\.$#'
-			identifier: function.notFound
+			message: '#^Function get_mail_template_by_id invoked with 2 parameters, 1 required\.$#'
+			identifier: arguments.count
 			count: 1
-			path: src/Services/UserManager.php
-
-		-
-			message: '#^Function get_mail_template_by_id not found\.$#'
-			identifier: function.notFound
-			count: 1
-			path: src/Services/UserManager.php
-
-		-
-			message: '#^Function get_option not found\.$#'
-			identifier: function.notFound
-			count: 4
 			path: src/Services/UserManager.php
 
 		-
@@ -1279,26 +1015,8 @@ parameters:
 			path: src/Services/UserManager.php
 
 		-
-			message: '#^Function mw not found\.$#'
-			identifier: function.notFound
-			count: 1
-			path: src/Services/UserManager.php
-
-		-
-			message: '#^Function mw_is_installed not found\.$#'
-			identifier: function.notFound
-			count: 5
-			path: src/Services/UserManager.php
-
-		-
 			message: '#^Function xss_clean not found\.$#'
 			identifier: function.notFound
-			count: 1
-			path: src/Services/UserManager.php
-
-		-
-			message: '#^Instantiated class MicroweberPackages\\App\\LoginAttempt not found\.$#'
-			identifier: class.notFound
 			count: 1
 			path: src/Services/UserManager.php
 
@@ -1336,12 +1054,6 @@ parameters:
 			path: src/Services/UserManager.php
 
 		-
-			message: '#^Property MicroweberPackages\\User\\Services\\UserManager\:\:\$app has unknown class MicroweberPackages\\App\\LaravelApplication as its type\.$#'
-			identifier: class.notFound
-			count: 1
-			path: src/Services/UserManager.php
-
-		-
 			message: '#^Static method MicroweberPackages\\Event\\Facades\\EventManager\:\:trigger\(\) invoked with 3 parameters, 1\-2 required\.$#'
 			identifier: arguments.count
 			count: 1
@@ -1360,6 +1072,66 @@ parameters:
 			path: src/Services/UserManager.php
 
 		-
+			message: '#^Call to an undefined method Illuminate\\Contracts\\Auth\\Factory\:\:user\(\)\.$#'
+			identifier: method.notFound
+			count: 5
+			path: src/Tests/Unit/Filament/ApiApplicationsPageTest.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Collection\<int, Illuminate\\Database\\Eloquent\\Model\>\|Illuminate\\Database\\Eloquent\\Model\:\:createToken\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Tests/Unit/Filament/ApiApplicationsPageTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Collection\<int, Illuminate\\Database\\Eloquent\\Model\>\|Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: src/Tests/Unit/Filament/UsersResourceTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: src/Tests/Unit/Filament/UsersResourceTest.php
+
+		-
+			message: '#^Call to an undefined method Livewire\\Features\\SupportTesting\\Testable\:\:assertTableColumnExists\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Tests/Unit/Filament/UsersResourceTest.php
+
+		-
+			message: '#^Call to an undefined method Livewire\\Features\\SupportTesting\\Testable\:\:callTableBulkAction\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Tests/Unit/Filament/UsersResourceTest.php
+
+		-
+			message: '#^Call to an undefined method Livewire\\Features\\SupportTesting\\Testable\:\:loadTable\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Tests/Unit/Filament/UsersResourceTest.php
+
+		-
+			message: '#^Call to an undefined method Livewire\\Features\\SupportTesting\\Testable\:\:searchTable\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: src/Tests/Unit/Filament/UsersResourceTest.php
+
+		-
+			message: '#^Call to an undefined static method MicroweberPackages\\User\\Models\\User\:\:where\(\)\.$#'
+			identifier: staticMethod.notFound
+			count: 3
+			path: src/Tests/Unit/Filament/UsersResourceTest.php
+
+		-
+			message: '#^Call to an undefined static method MicroweberPackages\\User\\Models\\User\:\:whereIn\(\)\.$#'
+			identifier: staticMethod.notFound
+			count: 1
+			path: src/Tests/Unit/Filament/UsersResourceTest.php
+
+		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Schema\\Blueprint\:\:hasIndex\(\)\.$#'
 			identifier: method.notFound
 			count: 1
@@ -1369,12 +1141,6 @@ parameters:
 			message: '#^Access to an undefined property Illuminate\\Contracts\\Auth\\Authenticatable\:\:\$is_admin\.$#'
 			identifier: property.notFound
 			count: 3
-			path: src/helpers/helpers.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Foundation\\Application\:\:\$user_manager\.$#'
-			identifier: property.notFound
-			count: 35
 			path: src/helpers/helpers.php
 
 		-
@@ -1390,26 +1156,8 @@ parameters:
 			path: src/helpers/helpers.php
 
 		-
-			message: '#^Function thumbnail not found\.$#'
-			identifier: function.notFound
-			count: 1
-			path: src/helpers/helpers.php
-
-		-
 			message: '#^Call to static method user\(\) on an unknown class Auth\.$#'
 			identifier: class.notFound
-			count: 1
-			path: src/resources/views/admin/auth/index.blade.php
-
-		-
-			message: '#^Function get_option not found\.$#'
-			identifier: function.notFound
-			count: 6
-			path: src/resources/views/admin/auth/index.blade.php
-
-		-
-			message: '#^Function template_name not found\.$#'
-			identifier: function.notFound
 			count: 1
 			path: src/resources/views/admin/auth/index.blade.php
 
@@ -1498,19 +1246,7 @@ parameters:
 			path: src/resources/views/admin/livewire/users/user-tos-log-modal.blade.php
 
 		-
-			message: '#^Access to an undefined property Illuminate\\Foundation\\Application\:\:\$template_manager\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/resources/views/email/resend.blade.php
-
-		-
 			message: '#^Function _e not found\.$#'
-			identifier: function.notFound
-			count: 1
-			path: src/resources/views/email/resend.blade.php
-
-		-
-			message: '#^Function get_favicon_tag not found\.$#'
 			identifier: function.notFound
 			count: 1
 			path: src/resources/views/email/resend.blade.php
@@ -1522,56 +1258,8 @@ parameters:
 			path: src/resources/views/email/resend.blade.php
 
 		-
-			message: '#^Access to an undefined property Illuminate\\Foundation\\Application\:\:\$ui\.$#'
-			identifier: property.notFound
-			count: 1
-			path: src/resources/views/layout.blade.php
-
-		-
-			message: '#^Function template_name not found\.$#'
-			identifier: function.notFound
-			count: 1
-			path: src/resources/views/layout.blade.php
-
-		-
-			message: '#^Call to method start\(\) on an unknown class Modules\\Backup\\Formats\\JsonBackup\.$#'
-			identifier: class.notFound
-			count: 1
-			path: src/routes/api.php
-
-		-
-			message: '#^Class MicroweberPackages\\App\\Http\\Middleware\\SameSiteRefererMiddleware not found\.$#'
-			identifier: class.notFound
-			count: 1
-			path: src/routes/api.php
-
-		-
-			message: '#^Class MicroweberPackages\\App\\Http\\Middleware\\SessionlessMiddleware not found\.$#'
-			identifier: class.notFound
-			count: 1
-			path: src/routes/api.php
-
-		-
-			message: '#^Class MicroweberPackages\\App\\Http\\Middleware\\VerifyCsrfToken not found\.$#'
-			identifier: class.notFound
-			count: 1
-			path: src/routes/api.php
-
-		-
-			message: '#^Class MicroweberPackages\\App\\Http\\Middleware\\XSS not found\.$#'
-			identifier: class.notFound
-			count: 8
-			path: src/routes/api.php
-
-		-
 			message: '#^Function mw_admin_prefix_url_legacy not found\.$#'
 			identifier: function.notFound
-			count: 1
-			path: src/routes/api.php
-
-		-
-			message: '#^Instantiated class Modules\\Backup\\Formats\\JsonBackup not found\.$#'
-			identifier: class.notFound
 			count: 1
 			path: src/routes/api.php
 
@@ -1586,18 +1274,6 @@ parameters:
 			identifier: empty.variable
 			count: 1
 			path: src/routes/api.php
-
-		-
-			message: '#^Class MicroweberPackages\\App\\Http\\Middleware\\SameSiteRefererMiddleware not found\.$#'
-			identifier: class.notFound
-			count: 2
-			path: src/routes/web.php
-
-		-
-			message: '#^Class MicroweberPackages\\App\\Http\\Middleware\\XSS not found\.$#'
-			identifier: class.notFound
-			count: 1
-			path: src/routes/web.php
 
 		-
 			message: '#^Function mw_admin_prefix_url_legacy not found\.$#'
